@@ -1,0 +1,258 @@
+
+
+<!DOCTYPE html>
+<html>
+<head>
+	
+	<title>StreamStats open source delineation</title>
+
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.5.1/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css"/>
+    <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/leaflet@1.5.1/dist/leaflet.js" ></script>
+    <script src="https://unpkg.com/esri-leaflet@2.3.0/dist/esri-leaflet.js" ></script>
+
+    <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+
+
+
+	<style>
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            padding: 0;
+            margin: 0;
+        }
+        html, body, #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        body.delineate * { cursor: crosshair; }
+	</style>
+</head>
+<body>
+
+<div id='map'></div>
+
+<script>
+var map;
+var point, border, catchment, splitCatchment, upstreamBasin, mergedCatchment;
+var features;
+var layerControl;
+var streamGridLayer;
+var loadingToast;
+var startTime;
+var region;
+
+//main document ready function
+$(document).ready(function () {
+
+    toastr.options = {
+        "positionClass": "toast-bottom-right",
+    }
+
+	//initialize basemap
+	var natGeo = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', {
+		attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+		maxZoom: 16
+	});
+
+	//initialize map
+	map = new L.Map('map', {
+		center: new L.LatLng(42.75, -75.5),
+		zoom: 7,
+		layers: natGeo,
+		attributionControl: false,
+		zoomControl: false
+	});
+
+    layerControl = L.control.layers({'natGeo Basemap': natGeo}).addTo(map);
+
+    //show str900 grid
+    var url = 'https://gis.streamstats.usgs.gov/arcgis/rest/services/StreamStats/stateServices/MapServer';
+    streamGridLayer = L.esri.dynamicMapLayer({
+        url: url,
+        layers: [99,59]
+    }).addTo(map);
+    layerControl.addOverlay(streamGridLayer , "str900");
+
+    //containger featuregroup used for zooming
+    features = L.featureGroup();
+
+    map.on('zoomend', changeCursor );
+
+    //click listener for delineation start
+    map.on('click', delineatePoint)         
+
+});
+
+function changeCursor() {
+    if (map.getZoom() >= 4) {
+        console.log('ready to delineate')    
+        document.body.classList.add('delineate');
+    }
+    else {
+        document.body.classList.remove('delineate');
+    }
+}
+
+function validatePoint(e) {
+    var checkPoint = toastr.info('Validating click point', {timeOut: 0});
+
+    if (map.getZoom() < 15) return;
+
+    streamGridLayer.identify().on(map).at(e.latlng).returnGeometry(false).tolerance(5).layers('visible:99,59')
+        .run(function (error, featureCollection, response) {
+            console.log(featureCollection, response)
+            toastr.clear(checkPoint);
+            if (error) {
+            console.log(error);
+            return;
+            }
+            if (response.results[0].attributes['Pixel Value'] === '1') {
+
+                if (response.results[0].layerId == 59) region = 'ma';
+                if (response.results[0].layerId == 99) region = 'ny';
+                delineatePoint(e)
+            }
+            else {
+                toastr.warning('Please click on a stream cell');
+            }
+            
+    });
+}
+
+function delineatePoint(e) {
+
+    startTime = performance.now();
+    loadingToast = toastr.info('Delineating wastershed...', {timeOut: 0});
+
+    features.clearLayers();
+    if (point) { 
+        layerControl.removeLayer(point);
+        map.removeLayer(point)
+    }
+    if (catchment) {
+        layerControl.removeLayer(catchment);
+        map.removeLayer(catchment)
+    }
+    if (splitCatchment) {
+        layerControl.removeLayer(splitCatchment);
+        map.removeLayer(splitCatchment)
+    }
+    if (upstreamBasin) {
+        layerControl.removeLayer(upstreamBasin);
+        map.removeLayer(upstreamBasin)
+    }
+    if (mergedCatchment) {
+        layerControl.removeLayer(mergedCatchment);
+        map.removeLayer(mergedCatchment)
+    }
+
+    var data = {
+        lat: e.latlng.lat,
+        lng: e.latlng.lng
+    }
+    
+    // var data = {
+    //     lat: 44.00431,
+    //     lng: -73.71348
+    // }
+
+    point = L.marker([data.lat,data.lng]).addTo(map);
+
+    $.ajax({ 
+        url: 'http://127.0.0.1:5000/delineate',
+        type: 'GET',
+        dataType: 'json', // added data type
+        data: data,
+        success: function (res) {   // success callback function
+            console.log('response:',res)
+
+            toastr.clear(loadingToast);
+            var endTime = performance.now();
+            var totalTime = (endTime - startTime)/1000;
+            toastr.info('It took ' + totalTime.toFixed(2) + ' seconds.'); 
+
+            if (res.catchment) {
+                //console.log('has split Catchment', res.splitCatchment)
+                catchment = L.geoJson(res.catchment, { style: function(feature) {
+                    return {
+                        fillColor: 'yellow',
+                        weight: 2,
+                        opacity: 1,
+                        color: 'yellow',  //Outline color
+                        fillOpacity: 0.7         
+                    }    
+                }}).addTo(map);
+                catchment.addTo(features)
+                layerControl.addOverlay(catchment , "Catchment");
+
+            }
+
+            if (res.splitCatchment) {
+                //console.log('has split Catchment', res.splitCatchment)
+                splitCatchment = L.geoJson(res.splitCatchment, { style: function(feature) {
+                    return {
+                        fillColor: 'green',
+                        weight: 2,
+                        opacity: 1,
+                        color: 'green',  //Outline color
+                        fillOpacity: 0.7         
+                    }    
+                }}).addTo(map);
+                splitCatchment.addTo(features)
+                layerControl.addOverlay(splitCatchment , "Split Catchment");
+
+            }
+
+            if (res.upstreamBasin) {
+                //console.log('has adjoint Catchment', res.adjointCatchment)
+                upstreamBasin = L.geoJson(res.upstreamBasin, { style: function(feature) {
+                    return {
+                        fillColor: 'red',
+                        weight: 2,
+                        opacity: 1,
+                        color: 'red',  //Outline color
+                        fillOpacity: 0.7         
+                    }    
+                }}).addTo(map);
+                upstreamBasin.addTo(features)
+                layerControl.addOverlay(upstreamBasin , "Upstream Basin");
+                
+            }
+
+
+            if (res.mergedCatchment) {
+                //console.log('has merged Catchment', res.mergedCatchmentt)
+                mergedCatchment = L.geoJson(res.mergedCatchment, { style: function(feature) {
+                    return {
+                        fillColor: 'blue',
+                        weight: 2,
+                        opacity: 1,
+                        color: 'blue',  //Outline color
+                        fillOpacity: 0.2        
+                    }    
+                }}).addTo(map);
+                mergedCatchment.addTo(features)
+                layerControl.addOverlay(mergedCatchment , "Merged Catchment");
+            }
+
+            //console.log('features:',features)
+            map.fitBounds(features.getBounds())
+            
+        }
+    });
+
+
+    }
+
+</script>
+</body>
+</html>
