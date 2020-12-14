@@ -12,7 +12,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
 from datetime import datetime
-import nldi_delineate
+import nldi_delineate_pyflwdir
 import time
 
 app = Flask(__name__)
@@ -36,7 +36,7 @@ def main():
     #start main program
     timeBefore = time.perf_counter()  
 
-    results = nldi_delineate.Watershed(lng,lat)
+    results = nldi_delineate_pyflwdir.Watershed(lng,lat)
     
     timeAfter = time.perf_counter() 
     totalTime = timeAfter - timeBefore

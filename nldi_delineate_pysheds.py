@@ -132,6 +132,7 @@ class Watershed:
         #outputs
         self.catchment = self.geom_to_geojson(self.catchmentGeom, 'catchment')
         self.splitCatchment = self.geom_to_geojson(self.splitCatchmentGeom, 'splitCatchment')
+
         self.upstreamBasin = self.geom_to_geojson(self.upstreamBasinGeom, 'upstreamBasin')
         self.mergedCatchment = self.geom_to_geojson(self.mergedCatchmentGeom, 'mergedCatchment')
 
@@ -301,6 +302,7 @@ if __name__=='__main__':
 
     #test site
     point = (-73.82705, 43.29139)
+    #point = (-73.72435569763185, 43.17261895666325)
 
     #start main program
     delineation = Watershed(point[0],point[1])
