@@ -36,7 +36,7 @@ def main():
     #start main program
     timeBefore = time.perf_counter()  
 
-    results = nldi_delineate_pyflwdir.Watershed(lng,lat)
+    results = nldi_delineate_pyflwdir.Watershed(lng, lat, True, False)
     
     timeAfter = time.perf_counter() 
     totalTime = timeAfter - timeBefore

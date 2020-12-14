@@ -6,7 +6,6 @@ The purpose of this application is to prove a method for splitting a local NHD P
 * Install required packages
 ```
 conda config --add channels conda-forge
-conda create -n delineate python=3.7 gdal pysheds requests ## for pysheds
 conda create -n split-catchment python=3.8 pyproj requests pyflwdir rasterio shapely ## for pyflwdir
 ```
 
@@ -22,7 +21,7 @@ Get EPA data
 ##  Get Started
 You should now be able to run the script at a predefined sample site by running: 
 ```
-conda activate delineate
+conda activate split-catchment
 python ./nldi_delineate_pyflwdir.py
 ```
 

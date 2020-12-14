@@ -34,10 +34,12 @@ IN_FDR = 'C:/NYBackup/GitHub/nldi-splitCatchment/data/nhdplus/NHDPlusMA/NHDPlus0
 class Watershed:
     """Define inputs and outputs for the main Watershed class"""
 
-    def __init__(self, x=None, y=None):
+    def __init__(self, x=None, y=None, fullBasin=True, export=True):
 
         self.x = x
         self.y = y
+        self.fullBasin = fullBasin
+        self.export = export
         self.catchmentIdentifier = None
 
         #geoms
@@ -68,8 +70,19 @@ class Watershed:
         }
 
 ## helper functions
-    def geom_to_geojson(self, geom, name, simplify_tolerance=10, write_output=False):
+    def geom_to_geojson(self, geom, name, write_output=False):
         """Return a geojson from an OGR geom object"""
+
+        from pyproj import Geod
+        from shapely import wkt
+
+        # specify a named ellipsoid
+        geod = Geod(ellps="WGS84")
+
+        poly = geom
+        area = abs(geod.geometry_area_perimeter(poly)[0])
+
+        print(name, 'area: {:12.3f} mi^2'.format(area*0.00000038610))
 
         geojson_dict = mapping(geom)
 
@@ -86,16 +99,16 @@ class Watershed:
         self.catchmentIdentifier, self.catchmentGeom = self.get_local_catchment(self.x,self.y)
         self.splitCatchmentGeom = self.split_catchment(self.catchmentGeom, self.x, self.y)
 
-        self.upstreamBasinGeom = self.get_upstream_basin(self.catchmentIdentifier)
-        self.mergedCatchmentGeom = self.merge_geometry(self.catchmentGeom, self.splitCatchmentGeom, self.upstreamBasinGeom)
-
         #outputs
-        self.catchment = self.geom_to_geojson(self.catchmentGeom, 'catchment')
-        self.splitCatchment = self.geom_to_geojson(self.splitCatchmentGeom, 'splitCatchment')
+        self.catchment = self.geom_to_geojson(self.catchmentGeom, 'catchment', self.export)
+        self.splitCatchment = self.geom_to_geojson(self.splitCatchmentGeom, 'splitCatchment', self.export)
 
-        #print('test', self.splitCatchment)
-        self.upstreamBasin = self.geom_to_geojson(self.upstreamBasinGeom, 'upstreamBasin')
-        self.mergedCatchment = self.geom_to_geojson(self.mergedCatchmentGeom, 'mergedCatchment')
+        if self.fullBasin:
+            self.upstreamBasinGeom = self.get_upstream_basin(self.catchmentIdentifier)
+            self.mergedCatchmentGeom = self.merge_geometry(self.catchmentGeom, self.splitCatchmentGeom, self.upstreamBasinGeom)
+            self.upstreamBasin = self.geom_to_geojson(self.upstreamBasinGeom, 'upstreamBasin', self.export)
+            self.mergedCatchment = self.geom_to_geojson(self.mergedCatchmentGeom, 'mergedCatchment', self.export)
+
 
     def transform_geom(self, proj, geom):
         """Transform geometry"""
@@ -125,10 +138,13 @@ class Watershed:
         #request catchment geometry from point in polygon query from NLDI geoserver
         # https://labs.waterdata.usgs.gov/geoserver/wmadata/ows?service=wfs&version=1.0.0&request=GetFeature&typeName=wmadata%3Acatchmentsp&outputFormat=application%2Fjson&srsName=EPSG%3A4326&CQL_FILTER=INTERSECTS%28the_geom%2C+POINT%28-73.745860+44.006830%29%29
         r = requests.get(NLDI_GEOSERVER_URL, params=payload)
+        print('HERE',r.url)
         resp = r.json()
 
         #get catchment id
         catchmentIdentifier = json.dumps(resp['features'][0]['properties']['featureid'])
+
+        print('catchment ID:', catchmentIdentifier)
 
         #get main catchment geometry polygon
         features = resp['features']
@@ -248,11 +264,11 @@ if __name__=='__main__':
     timeBefore = time.perf_counter()  
 
     #test site
-    point = (-73.82705, 43.29139)
-    #point = (-73.72435569763185, 43.17261895666325)
+    #point = (-73.82705, 43.29139)
+    point = (-73.72435569763185, 43.17261895666325)
 
     #start main program
-    delineation = Watershed(point[0],point[1])
+    delineation = Watershed(point[0],point[1], True, False)
 
     timeAfter = time.perf_counter() 
     totalTime = timeAfter - timeBefore
