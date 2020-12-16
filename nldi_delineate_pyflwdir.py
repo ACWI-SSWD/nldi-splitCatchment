@@ -18,18 +18,22 @@ import rasterio
 import rasterio.mask
 import pyflwdir
 import pyproj
-from shapely.ops import transform
+from shapely.ops import transform, unary_union
 from shapely.geometry import shape, mapping, Point, Polygon, GeometryCollection
 import json
 import time
 import numpy as np
+import geopandas
+from osgeo import ogr, osr, gdal
 
 #arguments
 NLDI_URL = 'https://labs.waterdata.usgs.gov/api/nldi/linked-data/comid/'
 NLDI_GEOSERVER_URL = 'https://labs.waterdata.usgs.gov/geoserver/wmadata/ows'
 NHDPLUS_FLOWLINES_QUERY_URL = 'https://hydro.nationalmap.gov/arcgis/rest/services/nhd/MapServer/6/query'
-OUT_PATH = 'C:/NYBackup/GitHub/nldi-splitCatchment/data/'
-IN_FDR = 'C:/NYBackup/GitHub/nldi-splitCatchment/data/nhdplus/NHDPlusMA/NHDPlus02/NHDPlusFdrFac02b/fdr'
+NHD_FLOWLINES_URL = 'https://labs.waterdata.usgs.gov/geoserver/wmadata/ows?service=wfs&version=1.0.0&request=GetFeature&typeName=wmadata%3Anhdflowline_network&maxFeatures=500&outputFormat=application%2Fjson&srsName=EPSG%3A4326&CQL_FILTER=comid%3D'
+ROOT_PATH = 'C:/Users/ahopkins/nldi/ACWI-SSWD/'
+OUT_PATH = ROOT_PATH + 'nldi-splitCatchment/data/'
+IN_FDR = ROOT_PATH + 'nldi-splitCatchment/data/NHDPlusMA/NHDPlus02/NHDPlusFdrFac02b/fdr'
 
 class Watershed:
     """Define inputs and outputs for the main Watershed class"""
@@ -39,22 +43,39 @@ class Watershed:
         self.x = x
         self.y = y
         self.catchmentIdentifier = None
+        self.flowlines = None
 
         #geoms
         self.catchmentGeom = None
         self.splitCatchmentGeom = None
         self.upstreamBasinGeom = None
-        self.mergedCatchmentGeom = None    
+        self.mergedCatchmentGeom = None 
+        self.downstreamPathGeom = None   
 
         #outputs
         self.catchment = None
         self.splitCatchment = None
         self.upstreamBasin = None
         self.mergedCatchment = None
+        self.downstreamPath = None
 
         #create transform
         self.transformToRaster = None
         self.transformToWGS84 = None
+
+        #input point spatial reference
+        self.sourceprj = osr.SpatialReference()
+        self.sourceprj.ImportFromProj4('+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs')
+        # self.sourceprj_espg = self.sourceprj.GetAttrValue("AUTHORITY")
+        # print("HERE", self.sourceprj)
+
+        # Getting spatial reference of input raster
+        raster = gdal.Open(IN_FDR, gdal.GA_ReadOnly)
+        self.Projection = raster.GetProjectionRef()
+        self.targetprj = osr.SpatialReference(wkt = raster.GetProjection())
+        # self.transformToRaster = osr.CoordinateTransformation(self.sourceprj, self.targetprj)
+        self.transformToWGS = osr.CoordinateTransformation(self.targetprj, self.sourceprj)
+
 
         #kick off
         self.run()
@@ -64,7 +85,8 @@ class Watershed:
             'catchment': self.catchment,
             'splitCatchment': self.splitCatchment, 
             'upstreamBasin': self.upstreamBasin,
-            'mergedCatchment': self.mergedCatchment
+            'mergedCatchment': self.mergedCatchment,
+            'downstreamPath': self.downstreamPath
         }
 
 ## helper functions
@@ -88,6 +110,7 @@ class Watershed:
 
         self.upstreamBasinGeom = self.get_upstream_basin(self.catchmentIdentifier)
         self.mergedCatchmentGeom = self.merge_geometry(self.catchmentGeom, self.splitCatchmentGeom, self.upstreamBasinGeom)
+        self.downstreamPathGeom = self.get_downstreamPath(self.catchmentGeom, self.catchmentIdentifier, self.x,self.y)
 
         #outputs
         self.catchment = self.geom_to_geojson(self.catchmentGeom, 'catchment')
@@ -96,6 +119,7 @@ class Watershed:
         #print('test', self.splitCatchment)
         self.upstreamBasin = self.geom_to_geojson(self.upstreamBasinGeom, 'upstreamBasin')
         self.mergedCatchment = self.geom_to_geojson(self.mergedCatchmentGeom, 'mergedCatchment')
+        self.downstreamPath = self.downstreamPathGeom
 
     def transform_geom(self, proj, geom):
         """Transform geometry"""
@@ -136,6 +160,31 @@ class Watershed:
 
         print('got local catchment')
         return catchmentIdentifier, catchmentGeom
+
+    def get_local_flowlines(self, catchmentIdentifier):
+        # Request NDH Flowlines
+
+        cql_filter = "comid=%s" % (catchmentIdentifier) 
+
+        payload = {
+            'service': 'wfs', 
+            'version': '1.0.0', 
+            'request': 'GetFeature', 
+            'typeName': 'wmadata:nhdflowline_network', 
+            'maxFeatures': '500',
+            'outputFormat': 'application/json',
+            'srsName': 'EPSG:4326',
+            'CQL_FILTER': cql_filter
+        }
+
+        #request  flowline geometry from point in polygon query from NLDI geoserver
+        r = requests.get(NLDI_GEOSERVER_URL, params=payload)
+
+        print('request url: ', r.url)
+        flowlines = r.json()
+
+        print('got local flowlines', flowlines)
+        return flowlines
 
     def get_upstream_basin(self, catchmentIdentifier):
         """Use local catchment identifier to get upstream basin geometry from NLDI"""
@@ -242,6 +291,167 @@ class Watershed:
 
         print('finish split catchment...')
         return split_geom       
+
+    def get_downstreamPath(self, catchment_geom, catchmentIdentifier, x, y):
+        """Use catchment bounding box to clip NHD Plus v2 flow direction raster, and trace a flowpath from X,Y"""
+
+        # RasterFormat = 'GTiff'
+        # PixelRes = 30
+
+        # #method to use catchment bounding box instead of exact geom
+        # gdal.Warp(OUT_FDR, IN_FDR, format=RasterFormat, outputBounds=bounds, xRes=PixelRes, yRes=PixelRes, dstSRS=self.Projection, resampleAlg=gdal.GRA_NearestNeighbour, options=['COMPRESS=DEFLATE'])
+
+        # with rasterio.open(OUT_FDR, 'r') as src:
+        #     flwdir = src.read(1)
+        #     transform = src.transform
+        #     latlon = src.crs.to_epsg() == 4326
+
+        # flw = pyflwdir.from_array(flwdir, ftype='d8', transform=transform, latlon=latlon)
+
+        print('start clip raster')
+        with rasterio.open(IN_FDR, 'r') as ds:
+            #get raster crs
+            dest_crs = ds.crs
+
+            #create wgs84 crs
+            wgs84 = pyproj.CRS('EPSG:4326')
+
+            #check to see if raster is already wgs84
+            latlon = dest_crs == wgs84
+            
+            self.transformToRaster = pyproj.Transformer.from_crs(wgs84, dest_crs, always_xy=True).transform
+            self.transformToWGS84 = pyproj.Transformer.from_crs(dest_crs, wgs84, always_xy=True).transform
+
+            #transform catchment geometry to use for clip
+            projected_catchment_geom = self.transform_geom(self.transformToRaster, catchment_geom)
+
+            #clip input fd
+            flwdir, flwdir_transform = rasterio.mask.mask(ds, projected_catchment_geom, crop=True)
+            print('finish clip raster')
+            
+        #import clipped fdr into pyflwdir
+        flw = pyflwdir.from_array(flwdir[0], ftype='d8', transform=flwdir_transform, latlon=latlon)
+
+        point_geom = Point(self.x,self.y)
+        print('original point:',point_geom)
+
+        projected_point = transform(self.transformToRaster, point_geom)
+        print('projected point:',projected_point)
+
+        xy = projected_point.coords[:][0]
+
+        # get flowlines
+       # self.get_local_flowlines(catchmentIdentifier)
+
+        r = requests.get(NHD_FLOWLINES_URL + catchmentIdentifier)
+        flowlines = r.json()
+        print('got flowlines   ', flowlines)
+
+        dfNHD = geopandas.GeoDataFrame.from_features(flowlines, crs="EPSG:4326")
+
+        bbox = dfNHD.bounds
+
+        bboxlist = [[bbox.minx[0], bbox.miny[0]],
+                    [bbox.minx[0], bbox.maxy[0]],
+                    [bbox.maxx[0], bbox.maxy[0]],
+                    [bbox.maxx[0], bbox.miny[0]],
+                ]
+
+        polygon = Polygon(bboxlist)
+        clipbox = geopandas.GeoDataFrame([1], geometry=[polygon], crs="EPSG:4326")
+        clipbox.geometry[0]
+
+        # Convert flowlines to a geodataframe
+        
+        clippedNHD = geopandas.clip(dfNHD, clipbox)
+        print('dfNHD', type(dfNHD), dfNHD)
+
+
+
+        
+        line = clippedNHD.geometry[0]
+        print('line', type(line), line)
+        xlist = []
+        ylist = []
+        cellIndexList = []
+
+        # loop thru the flowlines, grab the xy coordinantes
+        for i in line.coords:
+            if i == 0:
+                xlist = []
+            if i != 0:
+                xlist = (i[0])
+                ylist = (i[1])
+            #    print(i)
+            cellIndex = flw.index(xlist, ylist)
+            cellIndexList.append(cellIndex)
+
+        # creaet mask from nhd
+        nhdMask = np.zeros(flw.shape, dtype=np.bool)
+        nhdMask.flat[cellIndexList] = True
+
+        # trace downstream
+        path, dist = flw.path( 
+            xy=xy,
+            mask=nhdMask
+            )
+
+        print(type(path), path)
+
+        # get points on downstreamPath and return the first(last) point
+        points = flw.xy(paths)
+        # Get X,Y of end point
+        cellid = points[0][0].size - 1
+        x = points[0][0][cellid]
+        y = points[1][0][cellid]
+        print('final point:', x, y)
+
+        mask = np.zeros(flw.shape, dtype=np.bool)
+        for i, p in enumerate(path):
+            mask.flat[p] = 1
+        
+        gdf_paths = flw.vectorize(mask=mask)
+        
+        print(type(gdf_paths), gdf_paths)
+
+        mergelines = unary_union(gdf_paths.geometry)
+        x = geopandas.GeoSeries([mergelines]).__geo_interface__
+        y = x['features'][0]['geometry']
+        dsp_geom = json.dumps(y)
+        downstreamPath = ogr.CreateGeometryFromJson(dsp_geom)
+        name = 'downstreamPath'
+
+        print('path.geojson', type(downstreamPath), downstreamPath)
+
+        transform_geom = downstreamPath.Clone()
+
+        transform_geom.Transform(self.transformToWGS)
+        json_text = transform_geom.ExportToJson()
+
+        #add some attributes
+        geom_json = json.loads(json_text)
+        
+        #get area in local units
+        length = mergelines.length
+
+        #create json structure
+        geojson_dict = {
+            "type": "Feature",
+            "geometry": geom_json,
+            "properties": {
+                "length": length
+            }
+        }
+
+        # if write_output:
+        #     f = open(OUT_PATH + name + '.geojson','w')
+        #     f.write(json.dumps(geojson_dict))
+        #     f.close()
+        #     print('Exported geojson:', name)
+        
+        return geojson_dict
+
+        # return downstreamPath
 
 if __name__=='__main__':
 

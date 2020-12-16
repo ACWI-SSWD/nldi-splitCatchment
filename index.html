@@ -46,7 +46,7 @@
 
 <script>
 var map;
-var point, border, catchment, splitCatchment, upstreamBasin, mergedCatchment;
+var point, border, catchment, splitCatchment, upstreamBasin, mergedCatchment, downstreamPath;
 var features;
 var layerControl;
 var streamGridLayer;
@@ -158,6 +158,10 @@ function delineatePoint(e) {
         layerControl.removeLayer(mergedCatchment);
         map.removeLayer(mergedCatchment)
     }
+    if (downstreamPath) {
+        layerControl.removeLayer(downstreamPath);
+        map.removeLayer(downstreamPath)
+    }
 
     var data = {
         lat: e.latlng.lat,
@@ -246,6 +250,21 @@ function delineatePoint(e) {
                 }}).addTo(map);
                 mergedCatchment.addTo(features)
                 layerControl.addOverlay(mergedCatchment , "Merged Catchment");
+            }
+
+            if (res.downstreamPath) {
+                console.log('has downstream path', res.downstreamPath)
+                downstreamPath = L.geoJson(res.downstreamPath, { style: function(feature) {
+                    return {
+                        fillColor: 'blue',
+                        weight: 2,
+                        opacity: 1,
+                        color: 'blue',  //Outline color
+                        fillOpacity: 0.2        
+                    }    
+                }}).addTo(map);
+                downstreamPath.addTo(features)
+                layerControl.addOverlay(downstreamPath , "Downstream Path");
             }
 
             //console.log('features:',features)
