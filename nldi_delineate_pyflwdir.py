@@ -18,13 +18,14 @@ import rasterio
 import rasterio.mask
 import pyflwdir
 import pyproj
-from shapely.ops import transform, unary_union
-from shapely.geometry import shape, mapping, Point, Polygon, GeometryCollection
+from shapely.ops import transform, unary_union, linemerge
+from shapely.geometry import shape, mapping, Point, Polygon, GeometryCollection, LineString
 import json
 import time
 import numpy as np
 import geopandas
 from osgeo import ogr, osr, gdal
+from typing import List, Tuple
 
 #arguments
 NLDI_URL = 'https://labs.waterdata.usgs.gov/api/nldi/linked-data/comid/'
@@ -44,6 +45,8 @@ class Watershed:
         self.y = y
         self.catchmentIdentifier = None
         self.flowlines = None
+        self.flw = None
+        self.xy = None
 
         #geoms
         self.catchmentGeom = None
@@ -110,7 +113,7 @@ class Watershed:
 
         self.upstreamBasinGeom = self.get_upstream_basin(self.catchmentIdentifier)
         self.mergedCatchmentGeom = self.merge_geometry(self.catchmentGeom, self.splitCatchmentGeom, self.upstreamBasinGeom)
-        self.downstreamPathGeom = self.get_downstreamPath(self.catchmentGeom, self.catchmentIdentifier, self.x,self.y)
+        self.downstreamPathGeom = self.get_downstreamPath(self.catchmentGeom, self.catchmentIdentifier, self.flw ,self.xy)
 
         #outputs
         self.catchment = self.geom_to_geojson(self.catchmentGeom, 'catchment')
@@ -127,6 +130,11 @@ class Watershed:
         projected_geom = transform(proj, geom)
 
         return projected_geom
+
+    def to_coord(self, geometry: LineString) -> List[Tuple[float, float]]:
+        """Returns a list of vertices from a geometry object"""
+        
+        return list(geometry.coords)
 
     def get_local_catchment(self, x, y):
         """Perform point in polygon query to NLDI geoserver to get local catchment geometry"""
@@ -159,6 +167,7 @@ class Watershed:
         catchmentGeom = GeometryCollection([shape(feature["geometry"]).buffer(0) for feature in features])
 
         print('got local catchment')
+        print(catchmentGeom)
         return catchmentIdentifier, catchmentGeom
 
     def get_local_flowlines(self, catchmentIdentifier):
@@ -243,7 +252,7 @@ class Watershed:
 
             #create wgs84 crs
             wgs84 = pyproj.CRS('EPSG:4326')
-
+        
             #check to see if raster is already wgs84
             latlon = dest_crs == wgs84
             
@@ -252,13 +261,14 @@ class Watershed:
 
             #transform catchment geometry to use for clip
             projected_catchment_geom = self.transform_geom(self.transformToRaster, catchment_geom)
-
+            
             #clip input fd
             flwdir, flwdir_transform = rasterio.mask.mask(ds, projected_catchment_geom, crop=True)
             print('finish clip raster')
             
         #import clipped fdr into pyflwdir
         flw = pyflwdir.from_array(flwdir[0], ftype='d8', transform=flwdir_transform, latlon=latlon)
+        self.flw = flw
 
         point_geom = Point(self.x,self.y)
         print('original point:',point_geom)
@@ -267,6 +277,7 @@ class Watershed:
         print('projected point:',projected_point)
 
         xy = projected_point.coords[:][0]
+        self.xy = xy
 
         #used for snapping click point
         stream_order = flw.stream_order()
@@ -290,104 +301,50 @@ class Watershed:
         split_geom = transform(self.transformToWGS84, shape(poly[0]))
 
         print('finish split catchment...')
-        return split_geom       
+        return split_geom
 
-    def get_downstreamPath(self, catchment_geom, catchmentIdentifier, x, y):
+    
+
+    def get_downstreamPath(self, catchment_geom, catchmentIdentifier, flw, xy):
         """Use catchment bounding box to clip NHD Plus v2 flow direction raster, and trace a flowpath from X,Y"""
-
-        # RasterFormat = 'GTiff'
-        # PixelRes = 30
-
-        # #method to use catchment bounding box instead of exact geom
-        # gdal.Warp(OUT_FDR, IN_FDR, format=RasterFormat, outputBounds=bounds, xRes=PixelRes, yRes=PixelRes, dstSRS=self.Projection, resampleAlg=gdal.GRA_NearestNeighbour, options=['COMPRESS=DEFLATE'])
-
-        # with rasterio.open(OUT_FDR, 'r') as src:
-        #     flwdir = src.read(1)
-        #     transform = src.transform
-        #     latlon = src.crs.to_epsg() == 4326
-
-        # flw = pyflwdir.from_array(flwdir, ftype='d8', transform=transform, latlon=latlon)
-
-        print('start clip raster')
-        with rasterio.open(IN_FDR, 'r') as ds:
-            #get raster crs
-            dest_crs = ds.crs
-
-            #create wgs84 crs
-            wgs84 = pyproj.CRS('EPSG:4326')
-
-            #check to see if raster is already wgs84
-            latlon = dest_crs == wgs84
-            
-            self.transformToRaster = pyproj.Transformer.from_crs(wgs84, dest_crs, always_xy=True).transform
-            self.transformToWGS84 = pyproj.Transformer.from_crs(dest_crs, wgs84, always_xy=True).transform
-
-            #transform catchment geometry to use for clip
-            projected_catchment_geom = self.transform_geom(self.transformToRaster, catchment_geom)
-
-            #clip input fd
-            flwdir, flwdir_transform = rasterio.mask.mask(ds, projected_catchment_geom, crop=True)
-            print('finish clip raster')
-            
-        #import clipped fdr into pyflwdir
-        flw = pyflwdir.from_array(flwdir[0], ftype='d8', transform=flwdir_transform, latlon=latlon)
-
-        point_geom = Point(self.x,self.y)
-        print('original point:',point_geom)
-
-        projected_point = transform(self.transformToRaster, point_geom)
-        print('projected point:',projected_point)
-
-        xy = projected_point.coords[:][0]
-
-        # get flowlines
-       # self.get_local_flowlines(catchmentIdentifier)
 
         r = requests.get(NHD_FLOWLINES_URL + catchmentIdentifier)
         flowlines = r.json()
-        print('got flowlines   ', flowlines)
+        #print('got flowlines   ', flowlines)
 
+        # Convert the flowlines to a geopandas dataframe
         dfNHD = geopandas.GeoDataFrame.from_features(flowlines, crs="EPSG:4326")
 
-        bbox = dfNHD.bounds
+        # Create a dataframe out of the catchment geometry
+        clipbox = geopandas.GeoDataFrame([1], geometry=[catchment_geom], crs="EPSG:4326")
 
-        bboxlist = [[bbox.minx[0], bbox.miny[0]],
-                    [bbox.minx[0], bbox.maxy[0]],
-                    [bbox.maxx[0], bbox.maxy[0]],
-                    [bbox.maxx[0], bbox.miny[0]],
-                ]
-
-        polygon = Polygon(bboxlist)
-        clipbox = geopandas.GeoDataFrame([1], geometry=[polygon], crs="EPSG:4326")
-        clipbox.geometry[0]
-
-        # Convert flowlines to a geodataframe
-        
+        # Clip the flowlines to the catchment
         clippedNHD = geopandas.clip(dfNHD, clipbox)
-        print('dfNHD', type(dfNHD), dfNHD)
 
+        # Project the projected and clipped flowlines to the same crs as the flw raster
+        projected_clippedNHD = self.transform_geom(self.transformToRaster, clippedNHD.geometry[0])
 
-
-        
-        line = clippedNHD.geometry[0]
-        print('line', type(line), line)
+        # Convert the flwoline coordinates to a format that can be iterated
+        line = self.to_coord(projected_clippedNHD)
         xlist = []
         ylist = []
         cellIndexList = []
 
-        # loop thru the flowlines, grab the xy coordinantes
-        for i in line.coords:
-            if i == 0:
+        # loop thru the flowline coordinates, grab the xy coordinantes and put them in separate lists.
+        # Use this lists in the index function of pyflwdir to grap the ids of the cell in which these points fall
+        for i in line:
+            if i == line[0]:
                 xlist = []
             if i != 0:
                 xlist = (i[0])
                 ylist = (i[1])
-            #    print(i)
             cellIndex = flw.index(xlist, ylist)
             cellIndexList.append(cellIndex)
 
-        # creaet mask from nhd
+        # create mask from in the same of the flw raster
         nhdMask = np.zeros(flw.shape, dtype=np.bool)
+
+        # Set the flowline cells to true
         nhdMask.flat[cellIndexList] = True
 
         # trace downstream
@@ -396,10 +353,9 @@ class Watershed:
             mask=nhdMask
             )
 
-        print(type(path), path)
-
         # get points on downstreamPath and return the first(last) point
-        points = flw.xy(paths)
+        points = flw.xy(path)
+
         # Get X,Y of end point
         cellid = points[0][0].size - 1
         x = points[0][0][cellid]
