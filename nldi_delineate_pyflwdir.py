@@ -30,6 +30,7 @@ NLDI_GEOSERVER_URL = 'https://labs.waterdata.usgs.gov/geoserver/wmadata/ows'
 NHDPLUS_FLOWLINES_QUERY_URL = 'https://hydro.nationalmap.gov/arcgis/rest/services/nhd/MapServer/6/query'
 OUT_PATH = 'C:/NYBackup/GitHub/nldi-splitCatchment/data/'
 IN_FDR = 'C:/NYBackup/GitHub/nldi-splitCatchment/data/nhdplus/NHDPlusMA/NHDPlus02/NHDPlusFdrFac02b/fdr'
+IN_FDR_COG = '/vsicurl/https://prod-is-usgs-sb-prod-publish.s3.amazonaws.com/5fe0d98dd34e30b9123eedb0/fdr.tif'
 
 class Watershed:
     """Define inputs and outputs for the main Watershed class"""
@@ -138,19 +139,16 @@ class Watershed:
         #request catchment geometry from point in polygon query from NLDI geoserver
         # https://labs.waterdata.usgs.gov/geoserver/wmadata/ows?service=wfs&version=1.0.0&request=GetFeature&typeName=wmadata%3Acatchmentsp&outputFormat=application%2Fjson&srsName=EPSG%3A4326&CQL_FILTER=INTERSECTS%28the_geom%2C+POINT%28-73.745860+44.006830%29%29
         r = requests.get(NLDI_GEOSERVER_URL, params=payload)
-        print('HERE',r.url)
         resp = r.json()
 
         #get catchment id
         catchmentIdentifier = json.dumps(resp['features'][0]['properties']['featureid'])
 
-        print('catchment ID:', catchmentIdentifier)
-
         #get main catchment geometry polygon
         features = resp['features']
         catchmentGeom = GeometryCollection([shape(feature["geometry"]).buffer(0) for feature in features])
 
-        print('got local catchment')
+        print('got local catchment:', catchmentIdentifier)
         return catchmentIdentifier, catchmentGeom
 
     def get_upstream_basin(self, catchmentIdentifier):
@@ -204,7 +202,7 @@ class Watershed:
         """Use catchment bounding box to clip NHD Plus v2 flow direction raster, and product split catchment delienation from X,Y"""
 
         print('start clip raster')
-        with rasterio.open(IN_FDR, 'r') as ds:
+        with rasterio.open(IN_FDR_COG, 'r') as ds:
             #get raster crs
             dest_crs = ds.crs
 
