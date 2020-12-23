@@ -132,7 +132,6 @@ class Watershed:
         #outputs
         self.catchment = self.geom_to_geojson(self.catchmentGeom, 'catchment')
         self.splitCatchment = self.geom_to_geojson(self.splitCatchmentGeom, 'splitCatchment')
-
         self.upstreamBasin = self.geom_to_geojson(self.upstreamBasinGeom, 'upstreamBasin')
         self.mergedCatchment = self.geom_to_geojson(self.mergedCatchmentGeom, 'mergedCatchment')
 
