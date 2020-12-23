@@ -14,9 +14,6 @@ Clone repo
 ```
 git clone https://github.com/marsmith/nldi-splitCatchment
 ```
-Get EPA data
-* Download NHD Plus v2 sample data from [here](https://s3.amazonaws.com/edap-nhdplus/NHDPlusV21/Data/NHDPlusMA/NHDPlusV21_MA_02_02b_FdrFac_01.7z)
-* Extract data to /data folder
 
 ##  Get Started
 You should now be able to run the script at a predefined sample site by running: 
