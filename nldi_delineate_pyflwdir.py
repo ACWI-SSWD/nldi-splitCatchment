@@ -55,14 +55,18 @@ class Watershed:
         self.splitCatchmentGeom = None
         self.upstreamBasinGeom = None
         self.mergedCatchmentGeom = None 
+        self.intersectionPointGeom = None
         self.downstreamPathGeom = None   
+        self.nhdFlowlinesGeom = None
 
         #outputs
         self.catchment = None
         self.splitCatchment = None
         self.upstreamBasin = None
         self.mergedCatchment = None
+        self.intersectionPoint = None
         self.downstreamPath = None
+        self.nhdFlowlines = None
 
         #create transform
         self.transformToRaster = None
@@ -77,7 +81,9 @@ class Watershed:
             'splitCatchment': self.splitCatchment, 
             'upstreamBasin': self.upstreamBasin,
             'mergedCatchment': self.mergedCatchment,
-            'downstreamPath': self.downstreamPath
+            'intersectionPoint': self.intersectionPoint,
+            'downstreamPath': self.downstreamPath,
+            'nhdFlowlines': self.nhdFlowlines
         }
 
 ## helper functions
@@ -112,7 +118,7 @@ class Watershed:
 
         self.upstreamBasinGeom = self.get_upstream_basin(self.catchmentIdentifier)
         self.mergedCatchmentGeom = self.merge_geometry(self.catchmentGeom, self.splitCatchmentGeom, self.upstreamBasinGeom)
-        self.downstreamPathGeom = self.get_downstreamPath(self.catchmentGeom, self.catchmentIdentifier, self.flw ,self.xy)
+        self.downstreamPathGeom, self.intersectionPointGeom, self.nhdFlowlinesGeom = self.get_downstreamPath(self.catchmentGeom, self.catchmentIdentifier, self.flw ,self.xy)
 
         #outputs
         self.catchment = self.geom_to_geojson(self.catchmentGeom, 'catchment', self.export)
@@ -124,10 +130,11 @@ class Watershed:
             self.upstreamBasin = self.geom_to_geojson(self.upstreamBasinGeom, 'upstreamBasin', self.export)
             self.mergedCatchment = self.geom_to_geojson(self.mergedCatchmentGeom, 'mergedCatchment', self.export)
 
-        #print('test', self.splitCatchment)
         self.upstreamBasin = self.geom_to_geojson(self.upstreamBasinGeom, 'upstreamBasin')
         self.mergedCatchment = self.geom_to_geojson(self.mergedCatchmentGeom, 'mergedCatchment')
+        self.intersectionPoint = self.geom_to_geojson(self.intersectionPointGeom, 'intersectionPoint')
         self.downstreamPath = self.geom_to_geojson(self.downstreamPathGeom, 'downstreamPath')
+        self.nhdFlowlines = self.geom_to_geojson(self.nhdFlowlinesGeom, 'nhdFlowlines')
 
     def transform_geom(self, proj, geom):
         """Transform geometry"""
@@ -172,7 +179,7 @@ class Watershed:
 
         #get main catchment geometry polygon
         features = resp['features']
-        print('features', type(features), features)
+        
         catchmentGeom = GeometryCollection([shape(feature["geometry"]).buffer(0) for feature in features])
 
         print('got local catchment')
@@ -201,7 +208,7 @@ class Watershed:
         print('request url: ', r.url)
         flowlines = r.json()
 
-        print('got local flowlines', flowlines)
+        print('got local flowlines')
         return flowlines
 
     def get_upstream_basin(self, catchmentIdentifier):
@@ -318,7 +325,10 @@ class Watershed:
 
         r = requests.get(NHD_FLOWLINES_URL + catchmentIdentifier)
         flowlines = r.json()
-        #print('got flowlines   ', flowlines)
+        print('got flowlines   ', type(flowlines), flowlines)
+
+        nhdFlowlines = flowlines['features'][0]['geometry']
+        nhdFlowlines = GeometryCollection([shape(nhdFlowlines)])
 
         # Convert the flowlines to a geopandas dataframe
         dfNHD = geopandas.GeoDataFrame.from_features(flowlines, crs="EPSG:4326")
@@ -365,21 +375,21 @@ class Watershed:
         points = flw.xy(path)
 
         # Get X,Y of end point
-        cellid = points[0][0].size - 1
-        x = points[0][0][cellid]
-        y = points[1][0][cellid]
+        lastPointID = points[0][0].size - 1
+        x = points[0][0][lastPointID]
+        y = points[1][0][lastPointID]
         print('final point:', x, y)
+        pointGeom = Point(x, y)
+        intersectionPoint = transform(self.transformToWGS84, pointGeom) 
+        print('intersectionPoint: ', intersectionPoint)
 
         # loop thru the downstream path points and create a dict of coords
-        pointslen = points[0][0].size - 1
         i = 0
         coordlist = {'type': 'LineString', 'coordinates': []}
-        #xyline = ogr.Geometry(ogr.wkbLineString)
-        while i < pointslen:
+        while i <= lastPointID:
             x = points[0][0][i]
             y = points[1][0][i]
             coordlist['coordinates'].append([x,y])
-            #xyline.AddPoint(xlist,ylist)
             i+=1
 
         # Convert the dict of coords to ogr geom
@@ -388,7 +398,8 @@ class Watershed:
         # Project the ogr geom to WGS84
         downstreamPath = transform(self.transformToWGS84, downstreamPath)
 
-        return downstreamPath
+        print('downstreamPath', type(downstreamPath), downstreamPath)
+        return downstreamPath, intersectionPoint, nhdFlowlines
 
 if __name__=='__main__':
 
