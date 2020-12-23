@@ -67,17 +67,17 @@ class Watershed:
         self.transformToWGS84 = None
 
         #input point spatial reference
-        self.sourceprj = osr.SpatialReference()
-        self.sourceprj.ImportFromProj4('+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs')
-        # self.sourceprj_espg = self.sourceprj.GetAttrValue("AUTHORITY")
-        # print("HERE", self.sourceprj)
+        # self.sourceprj = osr.SpatialReference()
+        # self.sourceprj.ImportFromProj4('+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs')
+        # # self.sourceprj_espg = self.sourceprj.GetAttrValue("AUTHORITY")
+        # # print("HERE", self.sourceprj)
 
-        # Getting spatial reference of input raster
-        raster = gdal.Open(IN_FDR, gdal.GA_ReadOnly)
-        self.Projection = raster.GetProjectionRef()
-        self.targetprj = osr.SpatialReference(wkt = raster.GetProjection())
-        # self.transformToRaster = osr.CoordinateTransformation(self.sourceprj, self.targetprj)
-        self.transformToWGS = osr.CoordinateTransformation(self.targetprj, self.sourceprj)
+        # # Getting spatial reference of input raster
+        # raster = gdal.Open(IN_FDR, gdal.GA_ReadOnly)
+        # self.Projection = raster.GetProjectionRef()
+        # self.targetprj = osr.SpatialReference(wkt = raster.GetProjection())
+        # # self.transformToRaster = osr.CoordinateTransformation(self.sourceprj, self.targetprj)
+        # self.transformToWGS = osr.CoordinateTransformation(self.targetprj, self.sourceprj)
 
 
         #kick off
@@ -122,7 +122,7 @@ class Watershed:
         #print('test', self.splitCatchment)
         self.upstreamBasin = self.geom_to_geojson(self.upstreamBasinGeom, 'upstreamBasin')
         self.mergedCatchment = self.geom_to_geojson(self.mergedCatchmentGeom, 'mergedCatchment')
-        self.downstreamPath = self.downstreamPathGeom
+        self.downstreamPath = self.geom_to_geojson(self.downstreamPathGeom, 'downstreamPath')
 
     def transform_geom(self, proj, geom):
         """Transform geometry"""
@@ -164,10 +164,15 @@ class Watershed:
 
         #get main catchment geometry polygon
         features = resp['features']
+        print('features', type(features), features)
         catchmentGeom = GeometryCollection([shape(feature["geometry"]).buffer(0) for feature in features])
 
+        for feature in features:
+            print('feature["geometry"]', type(feature["geometry"]), feature["geometry"])
+
         print('got local catchment')
-        print(catchmentGeom)
+        print('catchmentGeom', type(catchmentGeom),catchmentGeom)
+
         return catchmentIdentifier, catchmentGeom
 
     def get_local_flowlines(self, catchmentIdentifier):
@@ -301,6 +306,7 @@ class Watershed:
         split_geom = transform(self.transformToWGS84, shape(poly[0]))
 
         print('finish split catchment...')
+        print('split_geom', type(split_geom), split_geom)
         return split_geom
 
     
@@ -324,7 +330,7 @@ class Watershed:
         # Project the projected and clipped flowlines to the same crs as the flw raster
         projected_clippedNHD = self.transform_geom(self.transformToRaster, clippedNHD.geometry[0])
 
-        # Convert the flwoline coordinates to a format that can be iterated
+        # Convert the flowline coordinates to a format that can be iterated
         line = self.to_coord(projected_clippedNHD)
         xlist = []
         ylist = []
@@ -362,42 +368,52 @@ class Watershed:
         y = points[1][0][cellid]
         print('final point:', x, y)
 
-        mask = np.zeros(flw.shape, dtype=np.bool)
-        for i, p in enumerate(path):
-            mask.flat[p] = 1
+        pointslen = points[0][0].size - 1
+        i = 0
+        coordlist = {'type': 'LineString', 'coordinates': []}
+        #xyline = ogr.Geometry(ogr.wkbLineString)
+        while i < pointslen:
+            x = points[0][0][i]
+            y = points[1][0][i]
+            coordlist['coordinates'].append([x,y])
+            #xyline.AddPoint(xlist,ylist)
+            i+=1
+
+        downstreamPath = GeometryCollection([shape(coordlist)])
+        downstreamPath = transform(self.transformToWGS84, downstreamPath)
         
-        gdf_paths = flw.vectorize(mask=mask)
+        # mask = np.zeros(flw.shape, dtype=np.bool)
+        # for i, p in enumerate(path):
+        #     mask.flat[p] = 1
         
-        print(type(gdf_paths), gdf_paths)
+        # gdf_paths = flw.vectorize(mask=mask)
 
-        mergelines = unary_union(gdf_paths.geometry)
-        x = geopandas.GeoSeries([mergelines]).__geo_interface__
-        y = x['features'][0]['geometry']
-        dsp_geom = json.dumps(y)
-        downstreamPath = ogr.CreateGeometryFromJson(dsp_geom)
-        name = 'downstreamPath'
+        # mergelines = unary_union(gdf_paths.geometry)
+        # x = geopandas.GeoSeries([mergelines]).__geo_interface__
+        # y = x['features'][0]['geometry']
+        # dsp_geom = json.dumps(y)
+        # downstreamPath = ogr.CreateGeometryFromJson(dsp_geom)
+        # name = 'downstreamPath'
 
-        print('path.geojson', type(downstreamPath), downstreamPath)
+        # transform_geom = downstreamPath.Clone()
 
-        transform_geom = downstreamPath.Clone()
+        # transform_geom.Transform(self.transformToWGS)
+        # json_text = transform_geom.ExportToJson()
 
-        transform_geom.Transform(self.transformToWGS)
-        json_text = transform_geom.ExportToJson()
-
-        #add some attributes
-        geom_json = json.loads(json_text)
+        # #add some attributes
+        # geom_json = json.loads(json_text)
         
-        #get area in local units
-        length = mergelines.length
+        # #get area in local units
+        # length = mergelines.length
 
-        #create json structure
-        geojson_dict = {
-            "type": "Feature",
-            "geometry": geom_json,
-            "properties": {
-                "length": length
-            }
-        }
+        # #create json structure
+        # geojson_dict = {
+        #     "type": "Feature",
+        #     "geometry": geom_json,
+        #     "properties": {
+        #         "length": length
+        #     }
+        # }
 
         # if write_output:
         #     f = open(OUT_PATH + name + '.geojson','w')
@@ -405,9 +421,9 @@ class Watershed:
         #     f.close()
         #     print('Exported geojson:', name)
         
-        return geojson_dict
+        #return geojson_dict
 
-        # return downstreamPath
+        return downstreamPath
 
 if __name__=='__main__':
 
