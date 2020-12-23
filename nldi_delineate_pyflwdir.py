@@ -66,20 +66,6 @@ class Watershed:
         self.transformToRaster = None
         self.transformToWGS84 = None
 
-        #input point spatial reference
-        # self.sourceprj = osr.SpatialReference()
-        # self.sourceprj.ImportFromProj4('+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs')
-        # # self.sourceprj_espg = self.sourceprj.GetAttrValue("AUTHORITY")
-        # # print("HERE", self.sourceprj)
-
-        # # Getting spatial reference of input raster
-        # raster = gdal.Open(IN_FDR, gdal.GA_ReadOnly)
-        # self.Projection = raster.GetProjectionRef()
-        # self.targetprj = osr.SpatialReference(wkt = raster.GetProjection())
-        # # self.transformToRaster = osr.CoordinateTransformation(self.sourceprj, self.targetprj)
-        # self.transformToWGS = osr.CoordinateTransformation(self.targetprj, self.sourceprj)
-
-
         #kick off
         self.run()
 
@@ -167,11 +153,7 @@ class Watershed:
         print('features', type(features), features)
         catchmentGeom = GeometryCollection([shape(feature["geometry"]).buffer(0) for feature in features])
 
-        for feature in features:
-            print('feature["geometry"]', type(feature["geometry"]), feature["geometry"])
-
         print('got local catchment')
-        print('catchmentGeom', type(catchmentGeom),catchmentGeom)
 
         return catchmentIdentifier, catchmentGeom
 
@@ -306,10 +288,8 @@ class Watershed:
         split_geom = transform(self.transformToWGS84, shape(poly[0]))
 
         print('finish split catchment...')
-        print('split_geom', type(split_geom), split_geom)
         return split_geom
 
-    
 
     def get_downstreamPath(self, catchment_geom, catchmentIdentifier, flw, xy):
         """Use catchment bounding box to clip NHD Plus v2 flow direction raster, and trace a flowpath from X,Y"""
@@ -359,7 +339,7 @@ class Watershed:
             mask=nhdMask
             )
 
-        # get points on downstreamPath and return the first(last) point
+        # get points on downstreamPath 
         points = flw.xy(path)
 
         # Get X,Y of end point
@@ -368,6 +348,7 @@ class Watershed:
         y = points[1][0][cellid]
         print('final point:', x, y)
 
+        # loop thru the downstream path points and create a dict of coords
         pointslen = points[0][0].size - 1
         i = 0
         coordlist = {'type': 'LineString', 'coordinates': []}
@@ -379,49 +360,11 @@ class Watershed:
             #xyline.AddPoint(xlist,ylist)
             i+=1
 
+        # Convert the dict of coords to ogr geom
         downstreamPath = GeometryCollection([shape(coordlist)])
+
+        # Project the ogr geom to WGS84
         downstreamPath = transform(self.transformToWGS84, downstreamPath)
-        
-        # mask = np.zeros(flw.shape, dtype=np.bool)
-        # for i, p in enumerate(path):
-        #     mask.flat[p] = 1
-        
-        # gdf_paths = flw.vectorize(mask=mask)
-
-        # mergelines = unary_union(gdf_paths.geometry)
-        # x = geopandas.GeoSeries([mergelines]).__geo_interface__
-        # y = x['features'][0]['geometry']
-        # dsp_geom = json.dumps(y)
-        # downstreamPath = ogr.CreateGeometryFromJson(dsp_geom)
-        # name = 'downstreamPath'
-
-        # transform_geom = downstreamPath.Clone()
-
-        # transform_geom.Transform(self.transformToWGS)
-        # json_text = transform_geom.ExportToJson()
-
-        # #add some attributes
-        # geom_json = json.loads(json_text)
-        
-        # #get area in local units
-        # length = mergelines.length
-
-        # #create json structure
-        # geojson_dict = {
-        #     "type": "Feature",
-        #     "geometry": geom_json,
-        #     "properties": {
-        #         "length": length
-        #     }
-        # }
-
-        # if write_output:
-        #     f = open(OUT_PATH + name + '.geojson','w')
-        #     f.write(json.dumps(geojson_dict))
-        #     f.close()
-        #     print('Exported geojson:', name)
-        
-        #return geojson_dict
 
         return downstreamPath
 
