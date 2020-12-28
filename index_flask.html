@@ -4,7 +4,7 @@
 <html>
 <head>
 	
-	<title>nldi-delineate</title>
+	<title>StreamStats open source delineation</title>
 
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,9 +18,6 @@
 
     <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
-    <script src="https://unpkg.com/esri-leaflet@2.5.0/dist/esri-leaflet.js"
-    integrity="sha512-ucw7Grpc+iEQZa711gcjgMBnmd9qju1CICsRaryvX7HJklK0pGl/prxKvtHwpgm5ZHdvAil7YPxI1oWPOWK3UQ=="
-    crossorigin=""></script>
 
 
 
@@ -36,10 +33,11 @@
             width: 100%;
         }
 
-        .leaflet-container {
-            cursor: pointer !important;
+        .leaflet-control-layers:hover {
+            cursor: pointer;
         }
 
+        body.delineate * { cursor: crosshair; }
 	</style>
 </head>
 <body>
@@ -51,11 +49,10 @@ var map;
 var point, border, catchment, splitCatchment, upstreamBasin, mergedCatchment;
 var features;
 var layerControl;
+var streamGridLayer;
 var loadingToast;
 var startTime;
 var region;
-
-var url = 'https://nhgf.wim.usgs.gov/processes/nldi-delineate/jobs?response=document';
 
 //main document ready function
 $(document).ready(function () {
@@ -64,58 +61,78 @@ $(document).ready(function () {
         "positionClass": "toast-bottom-right",
     }
 
-	//initialize map
-	map = new L.Map('map', {
-		center: new L.LatLng(39, -96),
-		zoom: 5,
-		attributionControl: false,
-		zoomControl: false,
-        maxZoom: 16
+	//initialize basemap
+	var natGeo = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', {
+		attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+		maxZoom: 16
 	});
 
-    L.esri.basemapLayer('Gray').addTo(map);
+	//initialize map
+	map = new L.Map('map', {
+		center: new L.LatLng(42.75, -75.5),
+		zoom: 7,
+		layers: natGeo,
+		attributionControl: false,
+		zoomControl: false
+	});
 
-    var hydro = L.esri.dynamicMapLayer({
-        'url': 'https://hydro.nationalmap.gov/arcgis/rest/services/nhd/MapServer',
-        'layers': [5,6]
+    layerControl = L.control.layers({'natGeo Basemap': natGeo}).addTo(map);
+
+    //show str900 grid
+    var url = 'https://gis.streamstats.usgs.gov/arcgis/rest/services/StreamStats/stateServices/MapServer';
+    streamGridLayer = L.esri.dynamicMapLayer({
+        url: url,
+        layers: [99,59]
     }).addTo(map);
+    layerControl.addOverlay(streamGridLayer , "str900");
 
-    layerControl = L.control.layers().addTo(map);
-
-    layerControl.addOverlay(hydro , "Hydro");
-
-      //containger featuregroup used for zooming
+    //containger featuregroup used for zooming
     features = L.featureGroup();
 
+    map.on('zoomend', changeCursor );
+
     //click listener for delineation start
-    map.on('click', delineatePoint);
-
-    //get url args
-    var params = {};
-    window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(m, key, value) {
-        params[key] = value;
-    });
-
-    //if we have a lat and a lng, simulate a mouse click to start delineation
-    if (params.lat && params.lng) {
-        console.log('we have a lat/lng:',params.lat, params.lng )
-
-        var latlngPoint = new L.LatLng(params.lat, params.lng);
-        map.fireEvent('click', {
-            latlng: latlngPoint,
-            layerPoint: map.latLngToLayerPoint(latlngPoint),
-            containerPoint: map.latLngToContainerPoint(latlngPoint)
-        });
-    }
-
-    console.log('url params:', params)
-   
+    map.on('click', delineatePoint)         
 
 });
 
-function delineatePoint(e) {
+function changeCursor() {
+    if (map.getZoom() >= 4) {
+        console.log('ready to delineate')    
+        document.body.classList.add('delineate');
+    }
+    else {
+        document.body.classList.remove('delineate');
+    }
+}
 
-    console.log('in delineatePoint', e)
+function validatePoint(e) {
+    var checkPoint = toastr.info('Validating click point', {timeOut: 0});
+
+    if (map.getZoom() < 15) return;
+
+    streamGridLayer.identify().on(map).at(e.latlng).returnGeometry(false).tolerance(5).layers('visible:99,59')
+        .run(function (error, featureCollection, response) {
+            console.log(featureCollection, response)
+            toastr.clear(checkPoint);
+            if (error) {
+            console.log(error);
+            return;
+            }
+            if (response.results[0].attributes['Pixel Value'] === '1') {
+
+                if (response.results[0].layerId == 59) region = 'ma';
+                if (response.results[0].layerId == 99) region = 'ny';
+                delineatePoint(e)
+            }
+            else {
+                toastr.warning('Please click on a stream cell');
+            }
+            
+    });
+}
+
+function delineatePoint(e) {
 
     startTime = performance.now();
     loadingToast = toastr.info('Delineating wastershed...', {timeOut: 0});
@@ -146,34 +163,21 @@ function delineatePoint(e) {
         lat: e.latlng.lat,
         lng: e.latlng.lng
     }
-
-    var payload = {
-        'inputs':[
-            {
-                'id': 'lng',
-                'type': 'text/plain',
-                'value': data.lng.toString()
-            },
-            {
-                'id': 'lat',
-                'type': 'text/plain',
-                'value': data.lat.toString()
-            }
-        ]
-    }
     
+    // var data = {
+    //     lat: 44.00431,
+    //     lng: -73.71348
+    // }
+
     point = L.marker([data.lat,data.lng]).addTo(map);
 
     $.ajax({ 
-        url: url,
-        type: 'post',
-        contentType: "application/json",
-        dataType: 'json',
-        data: JSON.stringify(payload),
-        success: function (resData) {   // success callback function
-            console.log('response:',resData)
-
-            res = resData.outputs[0].value;
+        url: 'http://127.0.0.1:5000/delineate',
+        type: 'GET',
+        dataType: 'json', // added data type
+        data: data,
+        success: function (res) {   // success callback function
+            console.log('response:',res)
 
             toastr.clear(loadingToast);
             var endTime = performance.now();
@@ -190,7 +194,7 @@ function delineatePoint(e) {
                         color: 'yellow',  //Outline color
                         fillOpacity: 0.7         
                     }    
-                }})//.addTo(map);
+                }}).addTo(map);
                 catchment.addTo(features)
                 layerControl.addOverlay(catchment , "Catchment");
 
@@ -206,7 +210,7 @@ function delineatePoint(e) {
                         color: 'green',  //Outline color
                         fillOpacity: 0.7         
                     }    
-                }})//.addTo(map);
+                }}).addTo(map);
                 splitCatchment.addTo(features)
                 layerControl.addOverlay(splitCatchment , "Split Catchment");
 
@@ -222,7 +226,7 @@ function delineatePoint(e) {
                         color: 'red',  //Outline color
                         fillOpacity: 0.7         
                     }    
-                }})//.addTo(map);
+                }}).addTo(map);
                 upstreamBasin.addTo(features)
                 layerControl.addOverlay(upstreamBasin , "Upstream Basin");
                 
@@ -247,19 +251,7 @@ function delineatePoint(e) {
             //console.log('features:',features)
             map.fitBounds(features.getBounds())
             
-        },
-        error: function (jqXHR, status, err) {
-            console.log("Local error callback.", status, err);
-            toastr.clear(loadingToast);
-            toastr.error('There was a problem with the request', {timeOut: 0});
-        },
-        complete: function() {
-            console.log('after delineate:', data)
-
-            //update URL in address bar even on fail
-            window.history.pushState('delineate', 'nldi-delineate', './?lat=' + data.lat + '&lng=' + data.lng);
         }
-
     });
 
 
