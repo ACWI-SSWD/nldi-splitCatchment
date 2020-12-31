@@ -19,6 +19,9 @@
     <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
 
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/gokertanrisever/leaflet-ruler@master/src/leaflet-ruler.css" integrity="sha384-P9DABSdtEY/XDbEInD3q+PlL+BjqPCXGcF8EkhtKSfSTr/dS5PBKa9+/PMkW2xsY" crossorigin="anonymous">  
+    <script src="https://cdn.jsdelivr.net/gh/gokertanrisever/leaflet-ruler@master/src/leaflet-ruler.js" integrity="sha384-N2S8y7hRzXUPiepaSiUvBH1ZZ7Tc/ZfchhbPdvOE5v3aBBCIepq9l+dBJPFdo1ZJ" crossorigin="anonymous"></script>
+
 
 
 	<style>
@@ -73,10 +76,11 @@ $(document).ready(function () {
 		zoom: 7,
 		layers: natGeo,
 		attributionControl: false,
-		zoomControl: false
+        zoomControl: false
 	});
 
     layerControl = L.control.layers({'natGeo Basemap': natGeo}).addTo(map);
+    //L.control.ruler().addTo(map);
 
     //show str900 grid
     var url = 'https://gis.streamstats.usgs.gov/arcgis/rest/services/StreamStats/stateServices/MapServer';
@@ -92,8 +96,8 @@ $(document).ready(function () {
     map.on('zoomend', changeCursor );
 
     //click listener for delineation start
-    map.on('click', delineatePoint)         
-
+    map.on('click', delineatePoint)
+    
 });
 
 function changeCursor() {
@@ -182,6 +186,7 @@ function delineatePoint(e) {
     // }
 
     startPoint = L.marker([data.lat,data.lng]).addTo(map);
+    startPoint.bindPopup('<b> Start Point Coordinates: </b>' + data.lng + ', ' + data.lat )
 
     $.ajax({ 
         url: 'http://127.0.0.1:5000/delineate',
@@ -189,7 +194,7 @@ function delineatePoint(e) {
         dataType: 'json', // added data type
         data: data,
         success: function (res) {   // success callback function
-            console.log('response:',res)
+            console.log('response:',res) 
 
             toastr.clear(loadingToast);
             var endTime = performance.now();
@@ -244,7 +249,6 @@ function delineatePoint(e) {
                 
             }
 
-
             if (res.mergedCatchment) {
                 //console.log('has merged Catchment', res.mergedCatchmentt)
                 mergedCatchment = L.geoJson(res.mergedCatchment, { style: function(feature) {
@@ -294,8 +298,11 @@ function delineatePoint(e) {
                 nhdFlowlines.addTo(features)
                 layerControl.addOverlay(nhdFlowlines , "NHD Flowlines");
             }
-
-            intersectionPoint.bindPopup("Intersection Point");
+            
+            intersectionPoint.bindPopup('<b>Stream name: </b>' + res.streamInfo.gnis_name +
+                                        '<br><b>Comid: </b>' + res.streamInfo.comid + '</br>' +
+                                        '<br><b>Distance from start: </b>' + res.streamInfo.distFromStart + ' meters</br>' +
+                                        '<br><b>Distance to End: </b>' + res.streamInfo.distToEnd + ' meters</br>').openPopup();
 
             //console.log('features:',features)
             map.fitBounds(features.getBounds())
