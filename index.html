@@ -4,7 +4,7 @@
 <html>
 <head>
 	
-	<title>StreamStats open source delineation</title>
+	<title>nldi-delineate</title>
 
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,10 +18,9 @@
 
     <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
-
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/gokertanrisever/leaflet-ruler@master/src/leaflet-ruler.css" integrity="sha384-P9DABSdtEY/XDbEInD3q+PlL+BjqPCXGcF8EkhtKSfSTr/dS5PBKa9+/PMkW2xsY" crossorigin="anonymous">  
-    <script src="https://cdn.jsdelivr.net/gh/gokertanrisever/leaflet-ruler@master/src/leaflet-ruler.js" integrity="sha384-N2S8y7hRzXUPiepaSiUvBH1ZZ7Tc/ZfchhbPdvOE5v3aBBCIepq9l+dBJPFdo1ZJ" crossorigin="anonymous"></script>
-
+    <script src="https://unpkg.com/esri-leaflet@2.5.0/dist/esri-leaflet.js"
+    integrity="sha512-ucw7Grpc+iEQZa711gcjgMBnmd9qju1CICsRaryvX7HJklK0pGl/prxKvtHwpgm5ZHdvAil7YPxI1oWPOWK3UQ=="
+    crossorigin=""></script>
 
 
 	<style>
@@ -36,11 +35,10 @@
             width: 100%;
         }
 
-        .leaflet-control-layers:hover {
-            cursor: pointer;
+        .leaflet-container {
+            cursor: pointer !important;
         }
 
-        body.delineate * { cursor: crosshair; }
 	</style>
 </head>
 <body>
@@ -52,10 +50,11 @@ var map;
 var startPoint, border, catchment, splitCatchment, upstreamBasin, mergedCatchment, intersectionPoint, downstreamPath, nhdFlowlines;
 var features;
 var layerControl;
-var streamGridLayer;
 var loadingToast;
 var startTime;
 var region;
+
+var url = 'https://nhgf.wim.usgs.gov/processes/nldi-delineate/jobs?response=document';
 
 //main document ready function
 $(document).ready(function () {
@@ -64,79 +63,58 @@ $(document).ready(function () {
         "positionClass": "toast-bottom-right",
     }
 
-	//initialize basemap
-	var natGeo = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', {
-		attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
-		maxZoom: 16
-	});
-
 	//initialize map
 	map = new L.Map('map', {
-		center: new L.LatLng(42.75, -75.5),
-		zoom: 7,
-		layers: natGeo,
+		center: new L.LatLng(39, -96),
+		zoom: 5,
 		attributionControl: false,
-        zoomControl: false
+		zoomControl: false,
+        maxZoom: 16
 	});
 
-    layerControl = L.control.layers({'natGeo Basemap': natGeo}).addTo(map);
-    //L.control.ruler().addTo(map);
+    L.esri.basemapLayer('Gray').addTo(map);
 
-    //show str900 grid
-    var url = 'https://gis.streamstats.usgs.gov/arcgis/rest/services/StreamStats/stateServices/MapServer';
-    streamGridLayer = L.esri.dynamicMapLayer({
-        url: url,
-        layers: [99,59]
+    var hydro = L.esri.dynamicMapLayer({
+        'url': 'https://hydro.nationalmap.gov/arcgis/rest/services/nhd/MapServer',
+        'layers': [5,6]
     }).addTo(map);
-    layerControl.addOverlay(streamGridLayer , "str900");
 
-    //containger featuregroup used for zooming
+    layerControl = L.control.layers().addTo(map);
+
+    layerControl.addOverlay(hydro , "Hydro");
+
+      //containger featuregroup used for zooming
     features = L.featureGroup();
 
-    map.on('zoomend', changeCursor );
-
     //click listener for delineation start
-    map.on('click', delineatePoint)
-    
+    map.on('click', delineatePoint);
+
+    //get url args
+    var params = {};
+    window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(m, key, value) {
+        params[key] = value;
+    });
+
+    //if we have a lat and a lng, simulate a mouse click to start delineation
+    if (params.lat && params.lng) {
+        console.log('we have a lat/lng:',params.lat, params.lng )
+
+        var latlngPoint = new L.LatLng(params.lat, params.lng);
+        map.fireEvent('click', {
+            latlng: latlngPoint,
+            layerPoint: map.latLngToLayerPoint(latlngPoint),
+            containerPoint: map.latLngToContainerPoint(latlngPoint)
+        });
+    }
+
+    console.log('url params:', params)
+   
+
 });
 
-function changeCursor() {
-    if (map.getZoom() >= 4) {
-        console.log('ready to delineate')    
-        document.body.classList.add('delineate');
-    }
-    else {
-        document.body.classList.remove('delineate');
-    }
-}
-
-function validatePoint(e) {
-    var checkPoint = toastr.info('Validating click point', {timeOut: 0});
-
-    if (map.getZoom() < 15) return;
-
-    streamGridLayer.identify().on(map).at(e.latlng).returnGeometry(false).tolerance(5).layers('visible:99,59')
-        .run(function (error, featureCollection, response) {
-            console.log(featureCollection, response)
-            toastr.clear(checkPoint);
-            if (error) {
-            console.log(error);
-            return;
-            }
-            if (response.results[0].attributes['Pixel Value'] === '1') {
-
-                if (response.results[0].layerId == 59) region = 'ma';
-                if (response.results[0].layerId == 99) region = 'ny';
-                delineatePoint(e)
-            }
-            else {
-                toastr.warning('Please click on a stream cell');
-            }
-            
-    });
-}
-
 function delineatePoint(e) {
+
+    console.log('in delineatePoint', e)
 
     startTime = performance.now();
     loadingToast = toastr.info('Delineating wastershed...', {timeOut: 0});
@@ -179,22 +157,34 @@ function delineatePoint(e) {
         lat: e.latlng.lat,
         lng: e.latlng.lng
     }
-    
-    // var data = {
-    //     lat: 44.00431,
-    //     lng: -73.71348
-    // }
 
-    startPoint = L.marker([data.lat,data.lng]).addTo(map);
-    startPoint.bindPopup('<b> Start Point Coordinates: </b>' + data.lng + ', ' + data.lat )
+    var payload = {
+        'inputs':[
+            {
+                'id': 'lng',
+                'type': 'text/plain',
+                'value': data.lng.toString()
+            },
+            {
+                'id': 'lat',
+                'type': 'text/plain',
+                'value': data.lat.toString()
+            }
+        ]
+    }
+    
+    point = L.marker([data.lat,data.lng]).addTo(map);
 
     $.ajax({ 
-        url: 'http://127.0.0.1:5000/delineate',
-        type: 'GET',
-        dataType: 'json', // added data type
-        data: data,
-        success: function (res) {   // success callback function
-            console.log('response:',res) 
+        url: url,
+        type: 'post',
+        contentType: "application/json",
+        dataType: 'json',
+        data: JSON.stringify(payload),
+        success: function (resData) {   // success callback function
+            console.log('response:',resData)
+
+            res = resData.outputs[0].value;
 
             toastr.clear(loadingToast);
             var endTime = performance.now();
@@ -211,7 +201,7 @@ function delineatePoint(e) {
                         color: 'yellow',  //Outline color
                         fillOpacity: 0.7         
                     }    
-                }}).addTo(map);
+                }})//.addTo(map);
                 catchment.addTo(features)
                 layerControl.addOverlay(catchment , "Catchment");
 
@@ -227,7 +217,7 @@ function delineatePoint(e) {
                         color: 'green',  //Outline color
                         fillOpacity: 0.7         
                     }    
-                }}).addTo(map);
+                }})//.addTo(map);
                 splitCatchment.addTo(features)
                 layerControl.addOverlay(splitCatchment , "Split Catchment");
 
@@ -243,7 +233,7 @@ function delineatePoint(e) {
                         color: 'red',  //Outline color
                         fillOpacity: 0.7         
                     }    
-                }}).addTo(map);
+                }})//.addTo(map);
                 upstreamBasin.addTo(features)
                 layerControl.addOverlay(upstreamBasin , "Upstream Basin");
                 
@@ -299,15 +289,27 @@ function delineatePoint(e) {
                 layerControl.addOverlay(nhdFlowlines , "NHD Flowlines");
             }
             
-            intersectionPoint.bindPopup('<b>Stream name: </b>' + res.streamInfo.gnis_name +
-                                        '<br><b>Comid: </b>' + res.streamInfo.comid + '</br>' +
-                                        '<br><b>Distance from start: </b>' + res.streamInfo.distFromStart + ' meters</br>' +
-                                        '<br><b>Distance to End: </b>' + res.streamInfo.distToEnd + ' meters</br>').openPopup();
+            // intersectionPoint.bindPopup('<b>Stream name: </b>' + res.streamInfo.gnis_name +
+            //                             '<br><b>Comid: </b>' + res.streamInfo.comid + '</br>' +
+            //                             '<br><b>Distance from start: </b>' + res.streamInfo.distFromStart + ' meters</br>' +
+            //                             '<br><b>Distance to End: </b>' + res.streamInfo.distToEnd + ' meters</br>').openPopup();
 
             //console.log('features:',features)
             map.fitBounds(features.getBounds())
             
+        },
+        error: function (jqXHR, status, err) {
+            console.log("Local error callback.", status, err);
+            toastr.clear(loadingToast);
+            toastr.error('There was a problem with the request', {timeOut: 0});
+        },
+        complete: function() {
+            console.log('after delineate:', data)
+
+            //update URL in address bar even on fail
+            window.history.pushState('delineate', 'nldi-delineate', './?lat=' + data.lat + '&lng=' + data.lng);
         }
+
     });
 
 
