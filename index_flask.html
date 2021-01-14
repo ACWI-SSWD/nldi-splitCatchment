@@ -19,7 +19,12 @@
     <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
 
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/gokertanrisever/leaflet-ruler@master/src/leaflet-ruler.css" integrity="sha384-P9DABSdtEY/XDbEInD3q+PlL+BjqPCXGcF8EkhtKSfSTr/dS5PBKa9+/PMkW2xsY" crossorigin="anonymous">  
+    <script src="https://cdn.jsdelivr.net/gh/gokertanrisever/leaflet-ruler@master/src/leaflet-ruler.js" integrity="sha384-N2S8y7hRzXUPiepaSiUvBH1ZZ7Tc/ZfchhbPdvOE5v3aBBCIepq9l+dBJPFdo1ZJ" crossorigin="anonymous"></script>
 
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/gokertanrisever/leaflet-ruler@master/src/leaflet-ruler.css" integrity="sha384-P9DABSdtEY/XDbEInD3q+PlL+BjqPCXGcF8EkhtKSfSTr/dS5PBKa9+/PMkW2xsY" crossorigin="anonymous">  
+    <script src="https://cdn.jsdelivr.net/gh/gokertanrisever/leaflet-ruler@master/src/leaflet-ruler.js" integrity="sha384-N2S8y7hRzXUPiepaSiUvBH1ZZ7Tc/ZfchhbPdvOE5v3aBBCIepq9l+dBJPFdo1ZJ" crossorigin="anonymous"></script>
+    
 
 	<style>
 
@@ -46,7 +51,7 @@
 
 <script>
 var map;
-var point, border, catchment, splitCatchment, upstreamBasin, mergedCatchment;
+var startPoint, border, catchment, splitCatchment, upstreamBasin, mergedCatchment, intersectionPoint, downstreamPath, nhdFlowline;
 var features;
 var layerControl;
 var streamGridLayer;
@@ -73,10 +78,11 @@ $(document).ready(function () {
 		zoom: 7,
 		layers: natGeo,
 		attributionControl: false,
-		zoomControl: false
+        zoomControl: false
 	});
 
     layerControl = L.control.layers({'natGeo Basemap': natGeo}).addTo(map);
+    //L.control.ruler().addTo(map);
 
     //show str900 grid
     var url = 'https://gis.streamstats.usgs.gov/arcgis/rest/services/StreamStats/stateServices/MapServer';
@@ -92,8 +98,8 @@ $(document).ready(function () {
     map.on('zoomend', changeCursor );
 
     //click listener for delineation start
-    map.on('click', delineatePoint)         
-
+    map.on('click', delineatePoint)
+    
 });
 
 function changeCursor() {
@@ -138,9 +144,9 @@ function delineatePoint(e) {
     loadingToast = toastr.info('Delineating wastershed...', {timeOut: 0});
 
     features.clearLayers();
-    if (point) { 
-        layerControl.removeLayer(point);
-        map.removeLayer(point)
+    if (startPoint) { 
+        layerControl.removeLayer(startPoint);
+        map.removeLayer(startPoint)
     }
     if (catchment) {
         layerControl.removeLayer(catchment);
@@ -158,6 +164,18 @@ function delineatePoint(e) {
         layerControl.removeLayer(mergedCatchment);
         map.removeLayer(mergedCatchment)
     }
+    if (intersectionPoint) {
+        layerControl.removeLayer(intersectionPoint);
+        map.removeLayer(intersectionPoint)
+    }
+    if (downstreamPath) {
+        layerControl.removeLayer(downstreamPath);
+        map.removeLayer(downstreamPath)
+    }
+    if (nhdFlowline) {
+        layerControl.removeLayer(nhdFlowline);
+        map.removeLayer(nhdFlowline)
+    }
 
     var data = {
         lat: e.latlng.lat,
@@ -169,7 +187,8 @@ function delineatePoint(e) {
     //     lng: -73.71348
     // }
 
-    point = L.marker([data.lat,data.lng]).addTo(map);
+    startPoint = L.marker([data.lat,data.lng]).addTo(map);
+    startPoint.bindPopup('<b> Start Point Coordinates: </b>' + data.lng + ', ' + data.lat )
 
     $.ajax({ 
         url: 'http://127.0.0.1:5000/delineate',
@@ -177,7 +196,7 @@ function delineatePoint(e) {
         dataType: 'json', // added data type
         data: data,
         success: function (res) {   // success callback function
-            console.log('response:',res)
+            console.log('response:',res) 
 
             toastr.clear(loadingToast);
             var endTime = performance.now();
@@ -232,7 +251,6 @@ function delineatePoint(e) {
                 
             }
 
-
             if (res.mergedCatchment) {
                 //console.log('has merged Catchment', res.mergedCatchmentt)
                 mergedCatchment = L.geoJson(res.mergedCatchment, { style: function(feature) {
@@ -247,6 +265,52 @@ function delineatePoint(e) {
                 mergedCatchment.addTo(features)
                 layerControl.addOverlay(mergedCatchment , "Merged Catchment");
             }
+
+            if (res.intersectionPoint) {
+                console.log('has intersectionPoint', res.intersectionPoint)
+                intersectionPoint = L.geoJson(res.intersectionPoint).addTo(map);
+                intersectionPoint.addTo(features)
+                layerControl.addOverlay(intersectionPoint , "Intersection Point");
+            }
+
+            if (res.downstreamPath) {
+                downstreamPath = L.geoJson(res.downstreamPath, { style: function(feature) {
+                    return {
+                        fillColor: 'blue',
+                        weight: 2,
+                        opacity: 1,
+                        color: 'blue',  //Outline color
+                        fillOpacity: 0.2        
+                    }    
+                }}).addTo(map);
+                downstreamPath.addTo(features)
+                layerControl.addOverlay(downstreamPath , "Downstream Path");
+            }
+
+            if (res.nhdFlowline) {
+                nhdFlowline = L.geoJson(res.nhdFlowline, { style: function(feature) {
+                    return {
+                        fillColor: 'yellow',
+                        weight: 2,
+                        opacity: 1,
+                        color: 'yellow',  //Outline color
+                        fillOpacity: 0.2        
+                    }    
+                }}).addTo(map);
+                nhdFlowline.addTo(features)
+                layerControl.addOverlay(nhdFlowline , "NHD Flowlines");
+            }
+            
+            intersectionPoint.bindPopup('<b>Stream name: </b>' + res.streamInfo.gnis_name +
+                                        '<br><b>Comid: </b>' + res.streamInfo.comid + '</br>' +
+                                        '<b>Reach Code: </b>' + res.streamInfo.reachcode +
+                                        '<br><b>Measure: </b> 0:' + res.streamInfo.measure + '</br>' +
+                                        //'<b>lenghtkm: </b>' + res.streamInfo.lengthkm + ' km' +
+                                        //'<br><b>Sum lengths: </b>' + res.streamInfo.flowlineLength + ' km</br>' +
+                                        '<b>Downstream Path Length: </b>' + res.streamInfo.downstreamPathDist + ' meters' +
+                                        //'<br><b>Distance from Start: </b>' + res.streamInfo.distFromStart + ' meters</br>' +
+                                        //'<b>Distance to End: </b>' + res.streamInfo.distToEnd + ' meters' +
+                                        '<br><b>Intersection Point: </b>' + res.intersectionPoint.coordinates[1] + ', ' + res.intersectionPoint.coordinates[0] + '</br>').openPopup();
 
             //console.log('features:',features)
             map.fitBounds(features.getBounds())
