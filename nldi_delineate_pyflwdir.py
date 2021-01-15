@@ -33,11 +33,12 @@ from functools import partial
 #arguments
 NLDI_URL = 'https://labs.waterdata.usgs.gov/api/nldi/linked-data/comid/'
 NLDI_GEOSERVER_URL = 'https://labs.waterdata.usgs.gov/geoserver/wmadata/ows'
-NHDPLUS_FLOWLINES_QUERY_URL = 'https://hydro.nationalmap.gov/arcgis/rest/services/nhd/MapServer/6/query'
+# NHDPLUS_FLOWLINES_QUERY_URL = 'https://hydro.nationalmap.gov/arcgis/rest/services/nhd/MapServer/6/query'
 NHD_FLOWLINES_URL = 'https://labs.waterdata.usgs.gov/geoserver/wmadata/ows?service=wfs&version=1.0.0&request=GetFeature&typeName=wmadata%3Anhdflowline_network&maxFeatures=500&outputFormat=application%2Fjson&srsName=EPSG%3A4326&CQL_FILTER=comid%3D'
-ROOT_PATH = 'C:/Users/ahopkins/nldi/ACWI-SSWD/'
-OUT_PATH = ROOT_PATH + 'nldi-splitCatchment/data/'
-#IN_FDR = ROOT_PATH + 'nldi-splitCatchment/data/NHDPlusMA/NHDPlus02/NHDPlusFdrFac02b/fdr'
+# ROOT_PATH = 'C:/Users/ahopkins/nldi/ACWI-SSWD/'
+# OUT_PATH = ROOT_PATH + 'nldi-splitCatchment/data/'
+OUT_PATH = 'C:/NYBackup/GitHub/nldi-splitCatchment/data/'
+IN_FDR = ROOT_PATH + 'nldi-splitCatchment/data/NHDPlusMA/NHDPlus02/NHDPlusFdrFac02b/fdr'
 IN_FDR_COG = '/vsicurl/https://prod-is-usgs-sb-prod-publish.s3.amazonaws.com/5fe0d98dd34e30b9123eedb0/fdr.tif'
 
 class Watershed:
@@ -178,7 +179,6 @@ class Watershed:
 
         #get main catchment geometry polygon
         features = resp['features']
-        
         catchmentGeom = GeometryCollection([shape(feature["geometry"]).buffer(0) for feature in features])
 
         print('got local catchment:', catchmentIdentifier)
@@ -237,7 +237,7 @@ class Watershed:
         if 1==1:
 
             print('merging geometries...')
-            d = 0.00055
+            d = 0.00045
             #d2 = 0.00015 # distance
             cf = 1.3  # cofactor
 
@@ -377,7 +377,6 @@ class Watershed:
             xy=xy,
             mask=nhdMask
             )
-        print('traced downstreampath   ')
 
         # get points on downstreamPath 
         pathPoints = flw.xy(path)
@@ -392,6 +391,11 @@ class Watershed:
             coordlist['coordinates'].append([x,y])
             i+=1
 
+        if len(coordlist['coordinates']) < 2:
+            print('failed to trace downstreampath!  ')
+        if len(coordlist['coordinates']) >= 2:
+            print('traced downstreampath   ')
+        
         # Convert the dict of coords to ogr geom
         pathGeom = GeometryCollection([shape(coordlist)])
 
