@@ -35,10 +35,10 @@ NLDI_URL = 'https://labs.waterdata.usgs.gov/api/nldi/linked-data/comid/'
 NLDI_GEOSERVER_URL = 'https://labs.waterdata.usgs.gov/geoserver/wmadata/ows'
 # NHDPLUS_FLOWLINES_QUERY_URL = 'https://hydro.nationalmap.gov/arcgis/rest/services/nhd/MapServer/6/query'
 NHD_FLOWLINES_URL = 'https://labs.waterdata.usgs.gov/geoserver/wmadata/ows?service=wfs&version=1.0.0&request=GetFeature&typeName=wmadata%3Anhdflowline_network&maxFeatures=500&outputFormat=application%2Fjson&srsName=EPSG%3A4326&CQL_FILTER=comid%3D'
-# ROOT_PATH = 'C:/Users/ahopkins/nldi/ACWI-SSWD/'
-# OUT_PATH = ROOT_PATH + 'nldi-splitCatchment/data/'
-OUT_PATH = 'C:/NYBackup/GitHub/nldi-splitCatchment/data/'
-IN_FDR = ROOT_PATH + 'nldi-splitCatchment/data/NHDPlusMA/NHDPlus02/NHDPlusFdrFac02b/fdr'
+ROOT_PATH = 'C:/Users/ahopkins/nldi/ACWI-SSWD/'
+OUT_PATH = ROOT_PATH + 'nldi-splitCatchment/data/'
+# OUT_PATH = 'C:/NYBackup/GitHub/nldi-splitCatchment/data/'
+# IN_FDR = ROOT_PATH + 'nldi-splitCatchment/data/NHDPlusMA/NHDPlus02/NHDPlusFdrFac02b/fdr'
 IN_FDR_COG = '/vsicurl/https://prod-is-usgs-sb-prod-publish.s3.amazonaws.com/5fe0d98dd34e30b9123eedb0/fdr.tif'
 
 class Watershed:
@@ -54,6 +54,9 @@ class Watershed:
         self.flowlines = None
         self.flw = None
         self.xy = None
+        self.clickonFlowline = bool
+        self.nhdCellList = None
+
 
         #geoms
         self.catchmentGeom = None
@@ -63,6 +66,8 @@ class Watershed:
         self.intersectionPointGeom = None
         self.downstreamPathGeom = None   
         self.nhdFlowlineGeom = None
+        self.upstreamFlowlineGeom = None
+        self.downstreamFlowlineGeom = None
 
         #outputs
         self.catchment = None
@@ -73,6 +78,8 @@ class Watershed:
         self.downstreamPath = None
         self.nhdFlowline = None
         self.streamInfo = None
+        self.upstreamFlowline = None
+        self.downstreamFlowline = None
 
         #create transform
         self.transformToRaster = None
@@ -91,7 +98,9 @@ class Watershed:
             'intersectionPoint': self.intersectionPoint,
             'downstreamPath': self.downstreamPath,
             'nhdFlowline': self.nhdFlowline,
-            'streamInfo': self.streamInfo
+            'streamInfo': self.streamInfo, 
+            'upstreamFlowline': self.upstreamFlowline, 
+            'downstreamFlowline': self.downstreamFlowline
         }
 
 ## helper functions
@@ -121,28 +130,28 @@ class Watershed:
 
 ## main functions
     def run(self):
+        # Order of these functions is important!
         self.catchmentIdentifier, self.catchmentGeom = self.get_local_catchment(self.x,self.y)
-        self.splitCatchmentGeom = self.split_catchment(self.catchmentGeom, self.x, self.y)
-
-        self.upstreamBasinGeom = self.get_upstream_basin(self.catchmentIdentifier)
-        self.mergedCatchmentGeom = self.merge_geometry(self.catchmentGeom, self.splitCatchmentGeom, self.upstreamBasinGeom)
-        self.downstreamPathGeom, self.intersectionPointGeom, self.nhdFlowlineGeom, self.streamInfo = self.get_downstreamPath(self.catchmentGeom, self.catchmentIdentifier, self.flw ,self.xy)
-
-        #outputs
+        self.flowlines = self.get_local_flowlines(self.catchmentIdentifier)
+        self.splitCatchmentGeom, self.flw, self.xy = self.split_catchment(self.catchmentGeom, self.x, self.y)
+        self.nhdFlowlineGeom, self.streamInfo, self.clickonFlowline,  self.upstreamFlowlineGeom, self.downstreamFlowlineGeom = self.get_intersectionPoint( self.flw, self.xy, self.flowlines)
+        # self.nhdFlowline = self.geom_to_geojson(self.nhdFlowlineGeom, 'nhdFlowline')
         self.catchment = self.geom_to_geojson(self.catchmentGeom, 'catchment', self.export)
-        self.splitCatchment = self.geom_to_geojson(self.splitCatchmentGeom, 'splitCatchment', self.export)
 
-        if self.fullBasin:
+        if self.clickonFlowline == False:
+            self.downstreamPathGeom, self.streamInfo, self.intersectionPointGeom,  self.upstreamFlowlineGeom, self.downstreamFlowlineGeom = self.get_downstreamPath(self.flw, self.xy, self.streamInfo, self.nhdCellList, self.nhdFlowlineGeom, self.flowlines)
+            self.downstreamPath = self.geom_to_geojson(self.downstreamPathGeom, 'downstreamPath')
+            self.splitCatchment = self.geom_to_geojson(self.splitCatchmentGeom, 'splitCatchment', self.export)
+
+        self.intersectionPoint = self.geom_to_geojson(self.intersectionPointGeom, 'intersectionPoint')
+        self.upstreamFlowline = self.geom_to_geojson(self.upstreamFlowlineGeom, 'upstreamFlowline')
+        self.downstreamFlowline = self.geom_to_geojson(self.downstreamFlowlineGeom, 'downstreamFlowline')
+        
+        if self.clickonFlowline == True:
             self.upstreamBasinGeom = self.get_upstream_basin(self.catchmentIdentifier)
             self.mergedCatchmentGeom = self.merge_geometry(self.catchmentGeom, self.splitCatchmentGeom, self.upstreamBasinGeom)
-            self.upstreamBasin = self.geom_to_geojson(self.upstreamBasinGeom, 'upstreamBasin', self.export)
+            # self.upstreamBasin = self.geom_to_geojson(self.upstreamBasinGeom, 'upstreamBasin', self.export)
             self.mergedCatchment = self.geom_to_geojson(self.mergedCatchmentGeom, 'mergedCatchment', self.export)
-
-        self.upstreamBasin = self.geom_to_geojson(self.upstreamBasinGeom, 'upstreamBasin')
-        self.mergedCatchment = self.geom_to_geojson(self.mergedCatchmentGeom, 'mergedCatchment')
-        self.intersectionPoint = self.geom_to_geojson(self.intersectionPointGeom, 'intersectionPoint')
-        self.downstreamPath = self.geom_to_geojson(self.downstreamPathGeom, 'downstreamPath')
-        self.nhdFlowline = self.geom_to_geojson(self.nhdFlowlineGeom, 'nhdFlowline')
 
     def transform_geom(self, proj, geom):
         """Transform geometry"""
@@ -282,7 +291,6 @@ class Watershed:
             
         #import clipped fdr into pyflwdir
         flw = pyflwdir.from_array(flwdir[0], ftype='d8', transform=flwdir_transform, latlon=latlon)
-        self.flw = flw
 
         point_geom = Point(self.x,self.y)
         print('original point:',point_geom)
@@ -291,7 +299,6 @@ class Watershed:
         print('projected point:',projected_point)
 
         xy = projected_point.coords[:][0]
-        self.xy = xy
 
         #used for snapping click point
         stream_order = flw.stream_order()
@@ -315,31 +322,12 @@ class Watershed:
         split_geom = transform(self.transformToWGS84, shape(poly[0]))
 
         print('finish split catchment...')
-        return split_geom
+        return split_geom, flw, xy
 
-
-    def get_downstreamPath(self, catchment_geom, catchmentIdentifier, flw, xy):
-        """Use catchment bounding box to clip NHD Plus v2 flow direction raster, and trace a flowpath from X,Y"""
-
-        # Request the NHD Flowline from the catchment
-        r = requests.get(NHD_FLOWLINES_URL + catchmentIdentifier)
-        flowlines = r.json()
-        print('got flowlines..')
-
-        # Convert the flowline to a geometry colelction to be exported
-        nhdGeom = flowlines['features'][0]['geometry']
-        nhdFlowline = GeometryCollection([shape(nhdGeom)])[0]
-
-        # Select the stream name from the NHD Flowline
-        streamname = flowlines['features'][0]['properties']['gnis_name']
-        if streamname == ' ':
-            streamname = 'none'
-
-        # Create streamInfo dict and add some data
-        streamInfo = {'gnis_name' : streamname,
-                      'comid' : flowlines['features'][0]['properties']['comid'],
-                      'lengthkm' : flowlines['features'][0]['properties']['lengthkm'], 
-                      'reachcode' : flowlines['features'][0]['properties']['reachcode']}
+    def get_intersectionPoint(self, flw, xy, flowlines):
+        
+        # Set Geoid to measure distances in meters
+        geod = Geod(ellps="WGS84")
 
         # Convert the flowlines to a geopandas dataframe
         dfNHD = geopandas.GeoDataFrame.from_features(flowlines, crs="EPSG:4326")
@@ -351,26 +339,54 @@ class Watershed:
         line = list(projectedNHD.coords)
         print('created list of nhd coords  ')
 
-        # loop thru the flowline coordinates, grab the xy coordinantes and put them in separate lists.
+        # Loop thru the flowline coordinates, grab the xy coordinantes and put them in separate lists.
         # Use these lists in the index function of pyflwdir to grap the ids of the cell in which these points fall
+        lastID = len(line) - 1
         xlist = []
         ylist = []
-        cellIndexList = []
+        nhdCellList = []
         for i in line:
-            if i == line[0]:
-                xlist = []
-            if i != 0:
+            if i == line[lastID]:    # Pass the last point in the flowline. Sometimes this point is outside of
+                pass                 # the flw raster and this will cause flw.index() to fail.
+            if i != line[lastID]:
                 xlist = (i[0])
                 ylist = (i[1])
             cellIndex = flw.index(xlist, ylist)
-            cellIndexList.append(cellIndex)
+            nhdCellList.append(cellIndex)
         print('nhd converted to raster  ')
+
+        # What is the distance from the Click Point to the NHD Flowline?
+        clickPnt = Point(xy)
+        projClickPnt = self.transform_geom(self.transformToWGS84, clickPnt)
+        clickDist = clickPnt.distance(projectedNHD)
+
+        # Is the Click Point on a flowline?
+        if clickDist < 15:
+            print('Clickpoint is on a NHD Flowline')
+            clickonFlowline = True
+            self.intersectionPointGeom = transform( self.transformToWGS84, clickPnt )
+            
+
+        else:
+            print('Clickpoint is NOT on a NHD Flowline')
+            clickonFlowline = False
+            self.nhdCellList = nhdCellList
+            # self.nhdFlowline = nhdFlowline
+
+        nhdFlowline, streamInfo, upstreamFlowline, downstreamFlowline = self.get_measure(projClickPnt, flowlines)
+        
+        return nhdFlowline, streamInfo, clickonFlowline, upstreamFlowline, downstreamFlowline
+    
+    def get_downstreamPath(self, flw, xy, streamInfo, nhdCellList, nhdFlowline, flowlines):
+
+        # Set Geoid to measure distances in meters
+        geod = Geod(ellps="WGS84")
 
         # create mask from in the same of the flw raster
         nhdMask = np.zeros(flw.shape, dtype=np.bool)
 
         # Set the flowline cells to true
-        nhdMask.flat[cellIndexList] = True
+        nhdMask.flat[nhdCellList] = True
 
         # trace downstream
         path, dist = flw.path( 
@@ -392,7 +408,7 @@ class Watershed:
             i+=1
 
         if len(coordlist['coordinates']) < 2:
-            print('failed to trace downstreampath!  ')
+            print('Failed to trace downstreampath! Try another point. ')
         if len(coordlist['coordinates']) >= 2:
             print('traced downstreampath   ')
         
@@ -410,7 +426,6 @@ class Watershed:
         
         # Grap all the points of intersection between the downstreamPath and the flowline
         intersectionpoints = nhdFlowline.intersection(snapPath)
-        print('found intersection point')
 
         # Filter the intersecting points by geometry type. The downstream path 
         # will then be split by each point in the intersectionpoints geom. 
@@ -430,17 +445,51 @@ class Watershed:
                 for j in i.coords:
                     splitPoint = snap(Point(j), snapPath, .0002)
                     snapPath = split(snapPath[0], splitPoint)
-           
+        
         # The first linestring in the snapPath geometry collection in the downstreamPath
         downstreamPath = snapPath[0]
-
+        
         # The last point on the downstreamPath is the intersectionPoint
         coordID = len(downstreamPath.coords) - 1
         intersectionPoint = Point(downstreamPath.coords[coordID])
+        print('found intersection point')
 
+        nhdFlowline, streamInfo, upstreamFlowline, downstreamFlowline = self.get_measure(intersectionPoint, flowlines, downstreamPath)
+
+       
+        return downstreamPath, streamInfo, intersectionPoint, upstreamFlowline, downstreamFlowline
+
+    def get_measure(self, intersectionPoint, flowlines, *downstreamPath, **y):
+        # print('self: ', self,
+        # 'intersectionPoint: ', intersectionPoint,
+        # # 'nhdFlowline: ', nhdFlowline, 
+        # 'flowlines: ', flowlines,
+        # 'downstreamPath: ', downstreamPath,
+        # 'y: ', y)
         # Set Geoid to measure distances in meters
         geod = Geod(ellps="WGS84")
+
+        # Convert the flowline to a geometry colelction to be exported
+        nhdGeom = flowlines['features'][0]['geometry']
+        nhdFlowline = GeometryCollection([shape(nhdGeom)])[0]
+
+        # Select the stream name from the NHD Flowline
+        streamname = flowlines['features'][0]['properties']['gnis_name']
+        if streamname == ' ':
+            streamname = 'none'
+
+        # Create streamInfo dict and add some data
+        streamInfo = {'gnis_name' : streamname,
+                      'comid' : flowlines['features'][0]['properties']['comid'],
+                      'lengthkm' : flowlines['features'][0]['properties']['lengthkm'], 
+                      'reachcode' : flowlines['features'][0]['properties']['reachcode']}
+
+        # Add more data to the streamInfo dict
+        if downstreamPath:
+            streamInfo['downstreamPathDist'] = round(geod.geometry_length(downstreamPath[0]), 2)
         
+        streamInfo['flowlineLength'] = round(geod.geometry_length(nhdFlowline) / 1000, 3)
+
         # If the intersectionPoint is on the NHD Flowline, split the flowline at the point
         if nhdFlowline.intersects(intersectionPoint) == True:
             NHDFlowlinesCut = split(nhdFlowline, intersectionPoint)
@@ -451,28 +500,26 @@ class Watershed:
             buffIntersectionPoint = intersectionPoint.buffer(buffDist)
             NHDFlowlinesCut = split(nhdFlowline, buffIntersectionPoint)
 
-        # Add more data to the streamInfo dict
-        streamInfo['downstreamPathDist'] = round(geod.geometry_length(downstreamPath), 2)
-        streamInfo['flowlineLength'] = round(geod.geometry_length(nhdFlowline) / 1000, 3)
-        flowlineLength = round(geod.geometry_length(nhdFlowline), 2)
-        
         # If the NHD Flowline was split, then calculate measure
         try:
-             NHDFlowlinesCut[1]
+            NHDFlowlinesCut[1]
         except: 
-            print('failed to calculate measure')
+            streamInfo['measure'] = 100
+            upstreamFlowline = []
+            downstreamFlowline = NHDFlowlinesCut
         else:
             lastLineID = len(NHDFlowlinesCut) - 1
             distToOutlet = round(geod.geometry_length(NHDFlowlinesCut[lastLineID]), 2)
+            flowlineLength = round(geod.geometry_length(nhdFlowline), 2)
             streamInfo['measure'] =  round((distToOutlet/flowlineLength) * 100, 2)
-            print('calculated measure and reach')
-            
-        # print('intersectionPoint', type(intersectionPoint), intersectionPoint)
-        # print('downstreamPath', type(downstreamPath), downstreamPath)
-        # print('streamInfo: ', type(streamInfo), streamInfo)
-        # print('nhdFlowline: ', type(nhdFlowline), nhdFlowline.length)
+            upstreamFlowline = NHDFlowlinesCut[0]
+            downstreamFlowline = NHDFlowlinesCut[lastLineID]
+        print('calculated measure and reach')
+        print('upstreamFlowline: ', type(upstreamFlowline),upstreamFlowline)
+        print('downstreamFlowline: ', type(downstreamFlowline),downstreamFlowline)
 
-        return downstreamPath, intersectionPoint, nhdFlowline, streamInfo
+
+        return  nhdFlowline, streamInfo, upstreamFlowline, downstreamFlowline
 
 if __name__=='__main__':
 

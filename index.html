@@ -174,7 +174,7 @@ function delineatePoint(e) {
     }
     
     startPoint = L.marker([data.lat,data.lng]).addTo(map);
-    startPoint.bindPopup('<b> Start Point Coordinates: </b>' + data.lng + ', ' + data.lat )
+    startPoint.bindPopup('<b> Start Point Coordinates: </b>' + data.lat + ', ' + data.lng )
 
     $.ajax({ 
         url: url,

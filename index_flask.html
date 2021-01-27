@@ -51,7 +51,7 @@
 
 <script>
 var map;
-var startPoint, border, catchment, splitCatchment, upstreamBasin, mergedCatchment, intersectionPoint, downstreamPath, nhdFlowline;
+var startPoint, border, catchment, splitCatchment, upstreamBasin, mergedCatchment, intersectionPoint, downstreamPath, nhdFlowline, upstreamFlowline, downstreamFlowline;
 var features;
 var layerControl;
 var streamGridLayer;
@@ -176,6 +176,14 @@ function delineatePoint(e) {
         layerControl.removeLayer(nhdFlowline);
         map.removeLayer(nhdFlowline)
     }
+    if (upstreamFlowline) {
+        layerControl.removeLayer(upstreamFlowline);
+        map.removeLayer(upstreamFlowline)
+    }
+    if (downstreamFlowline) {
+        layerControl.removeLayer(downstreamFlowline);
+        map.removeLayer(downstreamFlowline)
+    }
 
     var data = {
         lat: e.latlng.lat,
@@ -188,7 +196,7 @@ function delineatePoint(e) {
     // }
 
     startPoint = L.marker([data.lat,data.lng]).addTo(map);
-    startPoint.bindPopup('<b> Start Point Coordinates: </b>' + data.lng + ', ' + data.lat )
+    startPoint.bindPopup('<b> Start Point Coordinates: </b>' + data.lat + ', ' + data.lng )
 
     $.ajax({ 
         url: 'http://127.0.0.1:5000/delineate',
@@ -267,13 +275,14 @@ function delineatePoint(e) {
             }
 
             if (res.intersectionPoint) {
-                console.log('has intersectionPoint', res.intersectionPoint)
+                //console.log('has intersectionPoint', res.intersectionPoint)
                 intersectionPoint = L.geoJson(res.intersectionPoint).addTo(map);
                 intersectionPoint.addTo(features)
                 layerControl.addOverlay(intersectionPoint , "Intersection Point");
             }
 
             if (res.downstreamPath) {
+                //console.log('has downstreamPath', res.downstreamPath)
                 downstreamPath = L.geoJson(res.downstreamPath, { style: function(feature) {
                     return {
                         fillColor: 'blue',
@@ -288,6 +297,7 @@ function delineatePoint(e) {
             }
 
             if (res.nhdFlowline) {
+                //console.log('has nhdFlowline', res.nhdFlowline)
                 nhdFlowline = L.geoJson(res.nhdFlowline, { style: function(feature) {
                     return {
                         fillColor: 'yellow',
@@ -301,6 +311,36 @@ function delineatePoint(e) {
                 layerControl.addOverlay(nhdFlowline , "NHD Flowlines");
             }
             
+            if (res.upstreamFlowline) {
+                console.log('has upstreamFlowline', res.upstreamFlowline)
+                upstreamFlowline = L.geoJson(res.upstreamFlowline, { style: function(feature) {
+                    return {
+                        fillColor: 'orange',
+                        weight: 2,
+                        opacity: 1,
+                        color: 'orange',  //Outline color
+                        fillOpacity: 0.2        
+                    }    
+                }}).addTo(map);
+                upstreamFlowline.addTo(features)
+                layerControl.addOverlay(upstreamFlowline , "Upstream Flowlines");
+            }
+
+            if (res.downstreamFlowline) {
+                console.log('has downstreamFlowline', res.downstreamFlowline)
+                downstreamFlowline = L.geoJson(res.downstreamFlowline, { style: function(feature) {
+                    return {
+                        fillColor: 'red',
+                        weight: 2,
+                        opacity: 1,
+                        color: 'red',  //Outline color
+                        fillOpacity: 0.2        
+                    }    
+                }}).addTo(map);
+                downstreamFlowline.addTo(features)
+                layerControl.addOverlay(downstreamFlowline , "Downstream Flowlines");
+            }
+
             intersectionPoint.bindPopup('<b>Stream name: </b>' + res.streamInfo.gnis_name +
                                         '<br><b>Comid: </b>' + res.streamInfo.comid + '</br>' +
                                         '<b>Reach Code: </b>' + res.streamInfo.reachcode +
@@ -311,7 +351,19 @@ function delineatePoint(e) {
             //console.log('features:',features)
             map.fitBounds(features.getBounds())
             
-        }
+        },
+        error: function (jqXHR, status, err) {
+            console.log("Local error callback.", status, err);
+            toastr.clear(loadingToast);
+            toastr.error('There was a problem with the request', {timeOut: 0});
+        },
+        complete: function() {
+            console.log('after delineate:', data)
+
+            //update URL in address bar even on fail
+        //     window.history.pushState('delineate', 'nldi-delineate', './?lat=' + data.lat + '&lng=' + data.lng);
+         }
+
     });
 
 
