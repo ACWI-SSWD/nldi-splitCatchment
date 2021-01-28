@@ -463,7 +463,7 @@ class Watershed:
         
         # The last point on the downstreamPath is the intersectionPoint
         coordID = len(downstreamPath.coords) - 1
-        intersectionPoint = Point(downstreamPath.coords[coordID])
+        intersectionPoint = Point(downstreamPath.coords[coordID][0], downstreamPath.coords[coordID][1]) # The first two coords of the point are used incase the point has a Z value
         print('found intersection point')
 
         return downstreamPath, intersectionPoint
@@ -491,8 +491,6 @@ class Watershed:
         # Add more data to the streamInfo dict
         if downstreamPath:
             streamInfo['downstreamPathDist'] = round(geod.geometry_length(downstreamPath[0]), 2)
-        
-        streamInfo['flowlineLength'] = round(geod.geometry_length(nhdFlowline) / 1000, 3)
 
         # If the intersectionPoint is on the NHD Flowline, split the flowline at the point
         if nhdFlowline.intersects(intersectionPoint) == True:
@@ -507,10 +505,23 @@ class Watershed:
         # If the NHD Flowline was split, then calculate measure
         try:
             NHDFlowlinesCut[1]
-        except: 
-            streamInfo['measure'] = 100
-            upstreamFlowline = GeometryCollection()
-            downstreamFlowline = NHDFlowlinesCut
+        except:  # If NHDFlowline was not split, then the intersectionPoint is either the first or last point on the NHDFlowline
+            startPoint = Point(nhdFlowline[0].coords[0][0], nhdFlowline[0].coords[0][1])
+            lastPointID = len(nhdFlowline[0].coords) - 1
+            lastPoint = Point(nhdFlowline[0].coords[lastPointID][0], nhdFlowline[0].coords[lastPointID][1])
+            if(intersectionPoint == startPoint):
+                streamInfo['measure'] = 100
+                upstreamFlowline = GeometryCollection()
+                downstreamFlowline = NHDFlowlinesCut
+            if(intersectionPoint == lastPoint):
+                streamInfo['measure'] = 0
+                downstreamFlowline = GeometryCollection()
+                upstreamFlowline = NHDFlowlinesCut
+            if(intersectionPoint != startPoint and intersectionPoint != lastPoint):
+                print('Error: NHD Flowline measure not calculated')
+                streamInfo['measure'] = 'null'
+                downstreamFlowline = GeometryCollection()
+                upstreamFlowline = GeometryCollection()
         else:
             lastLineID = len(NHDFlowlinesCut) - 1
             distToOutlet = round(geod.geometry_length(NHDFlowlinesCut[lastLineID]), 2)

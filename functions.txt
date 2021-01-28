@@ -1,0 +1,37 @@
+get_local_catchment()
+in: x, y
+out: catchmentIndentifier, catchmentGeom
+
+get_local_flowlines()
+in: catchmentIndentifier
+out: flowlines, nhdFlowline
+
+get_upstream_basin()
+in: catchmentIndentifier
+out: upstreamBasinGeom
+
+merge_geometry()
+in: catchment, splitCatchment, upstreamBasin
+out: mergedCatchmentGeom
+
+split_catchment()
+in: catchment_geom, x, y
+out: split_geom
+
+get_clickonFlowline()    RENAME!!
+in: flw, xy, flowlines
+out: clickonFlowline, intersectionPoint
+
+get_downstreamPath()
+in: flw, xy, streamInfo, nhdCellList, nhdFlowline, flowlines
+out: downstreamPath, intersectionPoint
+
+get_reachMeasure()
+in: intersectionPoint, flowlines, *downstreamPath
+out: streamInfo, upstreamFlowline, downstreamFlowline
+
+
+
+
+
+

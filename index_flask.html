@@ -315,10 +315,10 @@ function delineatePoint(e) {
                 console.log('has upstreamFlowline', res.upstreamFlowline)
                 upstreamFlowline = L.geoJson(res.upstreamFlowline, { style: function(feature) {
                     return {
-                        fillColor: 'orange',
+                        fillColor: 'yellow',
                         weight: 2,
                         opacity: 1,
-                        color: 'orange',  //Outline color
+                        color: 'yellow',  //Outline color
                         fillOpacity: 0.2        
                     }    
                 }}).addTo(map);
@@ -330,10 +330,10 @@ function delineatePoint(e) {
                 console.log('has downstreamFlowline', res.downstreamFlowline)
                 downstreamFlowline = L.geoJson(res.downstreamFlowline, { style: function(feature) {
                     return {
-                        fillColor: 'red',
+                        fillColor: 'yellow',
                         weight: 2,
                         opacity: 1,
-                        color: 'red',  //Outline color
+                        color: 'yellow',  //Outline color
                         fillOpacity: 0.2        
                     }    
                 }}).addTo(map);
