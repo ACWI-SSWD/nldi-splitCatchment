@@ -316,7 +316,7 @@ class Watershed:
         print('start split catchment...')
 
         # delineate subbasins
-        subbasins = flw.basins(xy=xy, streams=stream_order>4)
+        subbasins = flw.basins(xy=xy)   # , streams=stream_order>4
 
         #convert subbasins from uint32
         subbasins = subbasins.astype(np.int32)
@@ -498,9 +498,10 @@ class Watershed:
 
         # If they don't intersect (weird right?), buffer the intersectionPoint and then split the flowline
         if nhdFlowline.intersects(intersectionPoint) == False: 
-            buffDist = intersectionPoint.distance(nhdFlowline) * 1.1
+            buffDist = intersectionPoint.distance(nhdFlowline) * 1.01
             buffIntersectionPoint = intersectionPoint.buffer(buffDist)
             NHDFlowlinesCut = split(nhdFlowline, buffIntersectionPoint)
+            # print('NHDFlowlinesCut: ', len(NHDFlowlinesCut), NHDFlowlinesCut)
 
         # If the NHD Flowline was split, then calculate measure
         try:

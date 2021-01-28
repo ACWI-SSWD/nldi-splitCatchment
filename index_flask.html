@@ -293,7 +293,7 @@ function delineatePoint(e) {
                     }    
                 }}).addTo(map);
                 downstreamPath.addTo(features)
-                layerControl.addOverlay(downstreamPath , "Downstream Path");
+                layerControl.addOverlay(downstreamPath , "Raindrop Path");
             }
 
             if (res.nhdFlowline) {
@@ -345,7 +345,7 @@ function delineatePoint(e) {
                                         '<br><b>Comid: </b>' + res.streamInfo.comid + '</br>' +
                                         '<b>Reach Code: </b>' + res.streamInfo.reachcode +
                                         '<br><b>Measure: </b> 0:' + res.streamInfo.measure + '</br>' +
-                                        '<b>Downstream Path Length: </b>' + res.streamInfo.downstreamPathDist + ' meters' +
+                                        '<b>Raindrop Path Length: </b>' + res.streamInfo.downstreamPathDist + ' meters' +
                                         '<br><b>Intersection Point: </b>' + res.intersectionPoint.coordinates[1] + ', ' + res.intersectionPoint.coordinates[0] + '</br>').openPopup();
 
             //console.log('features:',features)
