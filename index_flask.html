@@ -127,8 +127,8 @@ function validatePoint(e) {
             }
             if (response.results[0].attributes['Pixel Value'] === '1') {
 
-                if (response.results[0].layerId == 59) region = 'ma';
-                if (response.results[0].layerId == 99) region = 'ny';
+                // if (response.results[0].layerId == 59) region = 'ma';
+                // if (response.results[0].layerId == 99) region = 'ny';
                 delineatePoint(e)
             }
             else {

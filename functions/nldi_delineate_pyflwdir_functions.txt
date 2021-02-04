@@ -18,7 +18,7 @@ split_catchment()
 in: catchment_geom, x, y
 out: split_geom
 
-get_clickonFlowline()    
+get_clickonFlowline()    RENAME!!
 in: flw, xy, flowlines
 out: clickonFlowline, intersectionPoint
 

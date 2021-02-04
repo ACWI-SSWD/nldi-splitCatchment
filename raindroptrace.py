@@ -1,18 +1,3 @@
-## NLDI split catchment delineation script
-
-# -----------------------------------------------------
-# Martyn Smith USGS
-# 10/29/2020
-# NLDI Delineation script
-# -----------------------------------------------------
-
-# list of required python packages:
-# gdal, pysheds, requests
-
-###### CONDA CREATE ENVIRONMENT COMMAND
-#conda create -n delineate python=3.6.8 gdal pysheds requests
-###### CONDA CREATE ENVIRONMENT COMMAND
-
 import requests
 import rasterio
 import rasterio.mask
@@ -41,8 +26,8 @@ OUT_PATH = ROOT_PATH + 'nldi-splitCatchment/data/'
 # IN_FDR = ROOT_PATH + 'nldi-splitCatchment/data/NHDPlusMA/NHDPlus02/NHDPlusFdrFac02b/fdr'
 IN_FDR_COG = '/vsicurl/https://prod-is-usgs-sb-prod-publish.s3.amazonaws.com/5fe0d98dd34e30b9123eedb0/fdr.tif'
 
-class Watershed:
-    """Define inputs and outputs for the main Watershed class"""
+class RaindropTrace:
+    """Define inputs and outputs for the main RaindropTrace class"""
 
     def __init__(self, x=None, y=None, fullBasin=True, export=True):
 
@@ -120,11 +105,11 @@ class Watershed:
 
         geojson_dict = mapping(geom)
 
-        # if write_output:
-        #     f = open(OUT_PATH + name + '.geojson','w')
-        #     f.write(json.dumps(geojson_dict))
-        #     f.close()
-        #     print('Exported geojson:', name)
+        if write_output:
+            f = open(OUT_PATH + name + '.geojson','w')
+            f.write(json.dumps(geojson_dict))
+            f.close()
+            print('Exported geojson:', name)
         
         return geojson_dict
 
@@ -543,7 +528,7 @@ if __name__=='__main__':
     point = (-73.72435569763185, 43.17261895666325)
 
     #start main program
-    delineation = Watershed(point[0],point[1], True, False)
+    delineation = RaindropTrace(point[0],point[1], True, False)
 
     timeAfter = time.perf_counter() 
     totalTime = timeAfter - timeBefore
