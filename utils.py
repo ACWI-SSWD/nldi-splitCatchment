@@ -33,7 +33,7 @@ IN_FDR_COG = '/vsicurl/https://prod-is-usgs-sb-prod-publish.s3.amazonaws.com/5fe
 # flowlines = None
 # flw = None
 # xy = None
-# clickonFlowline = bool
+# onFlowline = bool
 # nhdCellList = None
 
 
@@ -156,33 +156,23 @@ def get_upstream_basin(catchmentIdentifier):
 def merge_geometry(catchment, splitCatchment, upstreamBasin):
     """Attempt at merging geometries"""
 
-    #Test if point is on a flowline we have an upstream basin and need to do some geometry merging
-    if 1==1:
+    print('merging geometries...')
+    d = 0.00045
+    #d2 = 0.00015 # distance
+    cf = 1.3  # cofactor
 
-        print('merging geometries...')
-        d = 0.00045
-        #d2 = 0.00015 # distance
-        cf = 1.3  # cofactor
+    splitCatchment = splitCatchment.simplify(d)
 
-        splitCatchment = splitCatchment.simplify(d)
+    diff = catchment.difference(splitCatchment).buffer(-d).buffer(d*cf).simplify(d)
+    mergedCatchmentGeom = upstreamBasin.difference(diff).buffer(-d).buffer(d*cf).simplify(d)
 
-        diff = catchment.difference(splitCatchment).buffer(-d).buffer(d*cf).simplify(d)
-        mergedCatchmentGeom = upstreamBasin.difference(diff).buffer(-d).buffer(d*cf).simplify(d)
-
-        print('finished merging geometries')
-        #write out
-        return mergedCatchmentGeom
-
-    #otherwise, we can just return the split catchment
-    else:
-        mergedCatchmentGeom = splitCatchment
-
+    print('finished merging geometries')
+   
     return mergedCatchmentGeom
 
-def split_catchment(catchment_geom, x, y): 
-    """Use catchment bounding box to clip NHD Plus v2 flow direction raster, and product split catchment delienation from X,Y"""
+def get_coordsys():
+    """Get coordinate system of input flow direction raster"""
 
-    print('start clip raster')
     with rasterio.open(IN_FDR_COG, 'r') as ds:
         #get raster crs
         dest_crs = ds.crs
@@ -191,11 +181,45 @@ def split_catchment(catchment_geom, x, y):
         wgs84 = pyproj.CRS('EPSG:4326')
     
         #check to see if raster is already wgs84
-        latlon = dest_crs == wgs84
+        # latlon = dest_crs == wgs84
         
         transformToRaster = pyproj.Transformer.from_crs(wgs84, dest_crs, always_xy=True).transform
         transformToWGS84 = pyproj.Transformer.from_crs(dest_crs, wgs84, always_xy=True).transform
+        print('transformToRaster: ', transformToRaster)
 
+    return transformToRaster, transformToWGS84
+
+def project_point(x, y, transformToRaster):
+    """Project point to flow direction raster crs"""
+
+    point_geom = Point(x, y)
+    print('original point:',point_geom)
+
+    projected_point = transform(transformToRaster, point_geom)
+    print('projected point:',projected_point)
+
+    projected_xy = projected_point.coords[:][0]
+
+    return  projected_xy
+
+def get_flowgrid(catchment_geom, transformToRaster, transformToWGS84):
+    """Use catchment bounding box to clip NHD Plus v2 flow direction raster"""
+
+    print('start clip raster')
+    with rasterio.open(IN_FDR_COG, 'r') as ds:
+
+        #get raster crs
+        dest_crs = ds.crs
+        print('dest_crs: ', dest_crs)
+
+        #create wgs84 crs
+        wgs84 = pyproj.CRS('EPSG:4326')
+        print('wgs84: ', wgs84)
+    
+        #check to see if raster is already wgs84
+        latlon = dest_crs == wgs84
+        print('latlon: ', latlon)
+        
         #transform catchment geometry to use for clip
         projected_catchment_geom = transform_geom(transformToRaster, catchment_geom)
 
@@ -205,17 +229,15 @@ def split_catchment(catchment_geom, x, y):
         #clip input fd
         flwdir, flwdir_transform = rasterio.mask.mask(ds, buffer_projected_catchment_geom, crop=True)
         print('finish clip raster')
-        
+        print('flwdir_transform: ', flwdir_transform)
+         
     #import clipped fdr into pyflwdir
     flw = pyflwdir.from_array(flwdir[0], ftype='d8', transform=flwdir_transform, latlon=latlon)
 
-    point_geom = Point(x, y)
-    print('original point:',point_geom)
+    return flw, flwdir_transform
 
-    projected_point = transform(transformToRaster, point_geom)
-    print('projected point:',projected_point)
-
-    xy = projected_point.coords[:][0]
+def split_catchment(flw, flwdir_transform, projected_xy, transformToWGS84): 
+    """Produce split catchment delienation from X,Y"""
 
     #used for snapping click point
     stream_order = flw.stream_order()
@@ -223,7 +245,7 @@ def split_catchment(catchment_geom, x, y):
     print('start split catchment...')
 
     # delineate subbasins
-    subbasins = flw.basins(xy=xy)   # , streams=stream_order>4
+    subbasins = flw.basins(xy=projected_xy)   # , streams=stream_order>4
 
     #convert subbasins from uint32
     subbasins = subbasins.astype(np.int32)
@@ -239,9 +261,10 @@ def split_catchment(catchment_geom, x, y):
     split_geom = transform(transformToWGS84, shape(poly[0]))
 
     print('finish split catchment...')
-    return split_geom, flw, xy, transformToRaster, transformToWGS84
+    return split_geom
 
-def get_onFlowline(flw, xy, flowlines, transformToRaster, transformToWGS84):
+def get_onFlowline(projected_xy, flowlines, transformToRaster, transformToWGS84):
+    """Determine if x,y is on a NHD Flowline (within 15m)"""
     
     # Set Geoid to measure distances in meters
     geod = Geod(ellps="WGS84")
@@ -253,24 +276,22 @@ def get_onFlowline(flw, xy, flowlines, transformToRaster, transformToWGS84):
     projectedNHD = transform_geom(transformToRaster, dfNHD.geometry[0][0])
 
     # What is the distance from the Click Point to the NHD Flowline?
-    clickPnt = Point(xy)
+    clickPnt = Point(projected_xy)
     projClickPnt = transform_geom(transformToWGS84, clickPnt)
     clickDist = clickPnt.distance(projectedNHD)
 
     # Is the Click Point on a flowline?
     if clickDist < 15:
         print('Clickpoint is on a NHD Flowline')
-        clickonFlowline = True
-        intersectionPoint = transform( transformToWGS84, clickPnt )
+        onFlowline = True
         
     else:
         print('Clickpoint is NOT on a NHD Flowline')
-        clickonFlowline = False
-        intersectionPoint = Point()
+        onFlowline = False
         
-    return clickonFlowline, intersectionPoint
+    return onFlowline
 
-def get_downstreamPath(flw, xy, nhdFlowline, flowlines, transformToRaster, transformToWGS84):
+def get_raindropPath(flw, projected_xy, nhdFlowline, flowlines, transformToRaster, transformToWGS84):
 
     # Set Geoid to measure distances in meters
     geod = Geod(ellps="WGS84")
@@ -309,11 +330,11 @@ def get_downstreamPath(flw, xy, nhdFlowline, flowlines, transformToRaster, trans
 
     # trace downstream
     path, dist = flw.path( 
-        xy=xy,
+        xy=projected_xy,
         mask=nhdMask
         )
 
-    # get points on downstreamPath 
+    # get points on raindropPath 
     pathPoints = flw.xy(path)
 
     # loop thru the downstream path points and create a dict of coords
@@ -337,13 +358,13 @@ def get_downstreamPath(flw, xy, nhdFlowline, flowlines, transformToRaster, trans
     # Project the ogr geom to WGS84
     projectedPathGeom = transform(transformToWGS84, pathGeom)
 
-    # Snap downstreamPath points to the flowline within a ~35m buffer
+    # Snap raindropPath points to the flowline within a ~35m buffer
     snapPath = snap(projectedPathGeom[0], nhdFlowline, .00045)  
     
     # Convert snapPath to a geometry collection
     snapPath = GeometryCollection([snapPath])
     
-    # Grap all the points of intersection between the downstreamPath and the flowline
+    # Grap all the points of intersection between the raindropPath and the flowline
     intersectionpoints = nhdFlowline.intersection(snapPath)
 
     # Filter the intersecting points by geometry type. The downstream path 
@@ -365,17 +386,29 @@ def get_downstreamPath(flw, xy, nhdFlowline, flowlines, transformToRaster, trans
                 splitPoint = snap(Point(j), snapPath, .0002)
                 snapPath = split(snapPath[0], splitPoint)
     
-    # The first linestring in the snapPath geometry collection in the downstreamPath
-    downstreamPath = snapPath[0]
-    
-    # The last point on the downstreamPath is the intersectionPoint
-    coordID = len(downstreamPath.coords) - 1
-    intersectionPoint = Point(downstreamPath.coords[coordID][0], downstreamPath.coords[coordID][1]) # The first two coords of the point are used incase the point has a Z value
-    print('found intersection point')
+    # The first linestring in the snapPath geometry collection in the raindropPath
+    raindropPath = snapPath[0]
 
-    return downstreamPath, intersectionPoint
+    return raindropPath
 
-def get_reachMeasure(intersectionPoint, flowlines, *downstreamPath):
+
+def get_intersectionPoint(x, y, onFlowline, *raindropPath):
+    """Return the intersection point between the NHD Flowline and the raindropPath"""
+
+    if onFlowline == True:
+        intersectionPoint = Point(x, y)
+
+    if onFlowline == False:
+        # The last point on the raindropPath is the intersectionPoint
+        coordID = len(raindropPath.coords) - 1
+        intersectionPoint = Point(raindropPath.coords[coordID][0], raindropPath.coords[coordID][1]) # The first two coords of the point are used incase the point has a Z value
+        print('found intersection point')
+
+    return intersectionPoint
+
+
+def get_reachMeasure(intersectionPoint, flowlines, *raindropPath):
+    """Collect NHD Flowline Reach Code and Measure"""
     
     # Set Geoid to measure distances in meters
     geod = Geod(ellps="WGS84")
@@ -396,8 +429,8 @@ def get_reachMeasure(intersectionPoint, flowlines, *downstreamPath):
                     'reachcode' : flowlines['features'][0]['properties']['reachcode']}
 
     # Add more data to the streamInfo dict
-    if downstreamPath:
-        streamInfo['downstreamPathDist'] = round(geod.geometry_length(downstreamPath[0]), 2)
+    if raindropPath:
+        streamInfo['raindropPathDist'] = round(geod.geometry_length(raindropPath[0]), 2)
 
     # If the intersectionPoint is on the NHD Flowline, split the flowline at the point
     if nhdFlowline.intersects(intersectionPoint) == True:
@@ -419,24 +452,61 @@ def get_reachMeasure(intersectionPoint, flowlines, *downstreamPath):
         lastPoint = Point(nhdFlowline[0].coords[lastPointID][0], nhdFlowline[0].coords[lastPointID][1])
         if(intersectionPoint == startPoint):
             streamInfo['measure'] = 100
-            upstreamFlowline = GeometryCollection()
-            downstreamFlowline = NHDFlowlinesCut
         if(intersectionPoint == lastPoint):
             streamInfo['measure'] = 0
-            downstreamFlowline = GeometryCollection()
-            upstreamFlowline = NHDFlowlinesCut
         if(intersectionPoint != startPoint and intersectionPoint != lastPoint):
             print('Error: NHD Flowline measure not calculated')
             streamInfo['measure'] = 'null'
-            downstreamFlowline = GeometryCollection()
-            upstreamFlowline = GeometryCollection()
     else:
         lastLineID = len(NHDFlowlinesCut) - 1
         distToOutlet = round(geod.geometry_length(NHDFlowlinesCut[lastLineID]), 2)
         flowlineLength = round(geod.geometry_length(nhdFlowline), 2)
         streamInfo['measure'] =  round((distToOutlet/flowlineLength) * 100, 2)
+    print('calculated measure and reach')
+
+    return  streamInfo
+
+def split_flowline(intersectionPoint, flowlines):
+        
+    # Set Geoid to measure distances in meters
+    geod = Geod(ellps="WGS84")
+
+    # Convert the flowline to a geometry colelction to be exported
+    nhdGeom = flowlines['features'][0]['geometry']
+    nhdFlowline = GeometryCollection([shape(nhdGeom)])[0]
+
+    # If the intersectionPoint is on the NHD Flowline, split the flowline at the point
+    if nhdFlowline.intersects(intersectionPoint) == True:
+        NHDFlowlinesCut = split(nhdFlowline, intersectionPoint)
+
+    # If they don't intersect (weird right?), buffer the intersectionPoint and then split the flowline
+    if nhdFlowline.intersects(intersectionPoint) == False: 
+        buffDist = intersectionPoint.distance(nhdFlowline) * 1.01
+        buffIntersectionPoint = intersectionPoint.buffer(buffDist)
+        NHDFlowlinesCut = split(nhdFlowline, buffIntersectionPoint)
+        # print('NHDFlowlinesCut: ', len(NHDFlowlinesCut), NHDFlowlinesCut)
+
+    # If the NHD Flowline was split, then calculate measure
+    try:
+        NHDFlowlinesCut[1]
+    except:  # If NHDFlowline was not split, then the intersectionPoint is either the first or last point on the NHDFlowline
+        startPoint = Point(nhdFlowline[0].coords[0][0], nhdFlowline[0].coords[0][1])
+        lastPointID = len(nhdFlowline[0].coords) - 1
+        lastPoint = Point(nhdFlowline[0].coords[lastPointID][0], nhdFlowline[0].coords[lastPointID][1])
+        if(intersectionPoint == startPoint):
+            upstreamFlowline = GeometryCollection()
+            downstreamFlowline = NHDFlowlinesCut
+        if(intersectionPoint == lastPoint):
+            downstreamFlowline = GeometryCollection()
+            upstreamFlowline = NHDFlowlinesCut
+        if(intersectionPoint != startPoint and intersectionPoint != lastPoint):
+            print('Error: NHD Flowline measure not calculated')
+            downstreamFlowline = GeometryCollection()
+            upstreamFlowline = GeometryCollection()
+    else:
+        lastLineID = len(NHDFlowlinesCut) - 1
         upstreamFlowline = NHDFlowlinesCut[0]
         downstreamFlowline = NHDFlowlinesCut[lastLineID]
     print('calculated measure and reach')
 
-    return  streamInfo, upstreamFlowline, downstreamFlowline
+    return upstreamFlowline, downstreamFlowline

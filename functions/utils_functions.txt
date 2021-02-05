@@ -1,32 +1,44 @@
-get_local_catchment()
-in: x, y
-out: catchmentIndentifier, catchmentGeom
+geom_to_geojson( geom, name )
+	return geojson_dict
 
-get_local_flowlines()
-in: catchmentIndentifier
-out: flowlines, nhdFlowline
+transform_geom( proj, geom)
+	return projected_geom
 
-get_upstream_basin()
-in: catchmentIndentifier
-out: upstreamBasinGeom
+get_local_catchment( x, y )
+	return catchmentIndentifier, catchmentGeom
 
-merge_geometry()
-in: catchment, splitCatchment, upstreamBasin
-out: mergedCatchmentGeom
+get_local_flowlines( catchmentIndentifier )
+	return flowlines, nhdFlowline
 
-split_catchment()
-in: catchment_geom, x, y
-out: split_geom
+get_upstream_basin( catchmentIndentifier )
+	return upstreamBasinGeom
 
-get_clickonFlowline()    RENAME!!
-in: flw, xy, flowlines
-out: clickonFlowline, intersectionPoint
+merge_geometry( catchment, splitCatchment, upstreamBasin )
+	return mergedCatchmentGeom
 
-get_downstreamPath()
-in: flw, xy, streamInfo, nhdCellList, nhdFlowline, flowlines
-out: downstreamPath, intersectionPoint
+get_coordsys()
+	return transformToRaster, transformToWGS84
 
-get_reachMeasure()
-in: intersectionPoint, flowlines, *downstreamPath
-out: streamInfo, upstreamFlowline, downstreamFlowline
+project_point( x, y, transformToRaster )
+	return projected_xy
 
+get_flowgrid( catchment_geom, transformToRaster, transformToWGS84 )
+	return flw, flwdir_transform
+
+split_catchment(flw, flwdir_transform, projected_xy, transformToWGS84)
+	return split_geom
+
+get_onFlowline(projected_xy, nhdFlowline, flowlines, transformToRaster, transformToWGS84 )  
+	return onFlowline
+
+get_raindropPath( flw, projected_xy, nhdFlowline, flowlines, transformToRaster, transformToWGS84 )
+	return downstreamPath
+
+get_intersectionPoint(x, y, onFlowline, raindropPath)
+	return intersectionPoint
+
+get_reachMeasure( intersectionPoint, flowlines, *downstreamPath )
+	return streamInfo
+
+split_flowline(intersectionPoint, flowlines)
+	return upstreamFlowline, downstreamFlowline
