@@ -4,7 +4,7 @@ import rasterio.mask
 import pyflwdir
 import pyproj
 from pyproj import Geod
-from shapely.ops import transform, split, snap
+from shapely.ops import transform, split, snap, linemerge
 import shapely.geometry
 from shapely.geometry import shape, mapping, Point, GeometryCollection, LineString
 import json
@@ -15,7 +15,7 @@ from osgeo import ogr, osr, gdal
 from functools import partial
 
 
-#arguments
+# arguments
 NLDI_URL = 'https://labs.waterdata.usgs.gov/api/nldi/linked-data/comid/'
 NLDI_GEOSERVER_URL = 'https://labs.waterdata.usgs.gov/geoserver/wmadata/ows'
 # NHDPLUS_FLOWLINES_QUERY_URL = 'https://hydro.nationalmap.gov/arcgis/rest/services/nhd/MapServer/6/query'
@@ -25,19 +25,9 @@ OUT_PATH = ROOT_PATH + 'nldi-splitCatchment/data/'
 # OUT_PATH = 'C:/NYBackup/GitHub/nldi-splitCatchment/data/'
 # IN_FDR = ROOT_PATH + 'nldi-splitCatchment/data/NHDPlusMA/NHDPlus02/NHDPlusFdrFac02b/fdr'
 IN_FDR_COG = '/vsicurl/https://prod-is-usgs-sb-prod-publish.s3.amazonaws.com/5fe0d98dd34e30b9123eedb0/fdr.tif'
-# transformToRaster = None
-# transformToWGS84 = None
-# # x = x
-# # y = y
-# catchmentIdentifier = None
-# flowlines = None
-# flw = None
-# xy = None
-# onFlowline = bool
-# nhdCellList = None
 
 
-## helper functions
+## functions
 def geom_to_geojson(geom, name):      # , write_output=False
     """Return a geojson from an OGR geom object"""
 
@@ -61,6 +51,7 @@ def geom_to_geojson(geom, name):      # , write_output=False
     #     print('Exported geojson:', name)
     
     return geojson_dict
+# return geojson_dict
 
 def transform_geom(proj, geom):
     """Transform geometry"""
@@ -68,6 +59,7 @@ def transform_geom(proj, geom):
     projected_geom = transform(proj, geom)
 
     return projected_geom
+# return projected_geom
 
 def get_local_catchment(x, y):
     """Perform point in polygon query to NLDI geoserver to get local catchment geometry"""
@@ -101,6 +93,7 @@ def get_local_catchment(x, y):
 
     print('got local catchment:', catchmentIdentifier)
     return catchmentIdentifier, catchmentGeom
+# return catchmentIdentifier, catchmentGeom
 
 def get_local_flowlines(catchmentIdentifier):
     # Request NDH Flowlines
@@ -121,7 +114,7 @@ def get_local_flowlines(catchmentIdentifier):
     #request  flowline geometry from point in polygon query from NLDI geoserver
     r = requests.get(NLDI_GEOSERVER_URL, params=payload)
 
-    print('request url: ', r.url)
+    # print('request url: ', r.url)
     flowlines = r.json()
 
     print('got local flowlines')
@@ -131,9 +124,10 @@ def get_local_flowlines(catchmentIdentifier):
     nhdFlowline = GeometryCollection([shape(nhdGeom)])[0]
 
     return flowlines, nhdFlowline
+# return flowlines, nhdFlowline
 
-def get_upstream_basin(catchmentIdentifier):
-    """Use local catchment identifier to get upstream basin geometry from NLDI"""
+def get_total_basin(catchmentIdentifier, catchment):
+    """Use local catchment identifier to get local upstream basin geometry from NLDI"""
 
     print('getting upstream basin...')
 
@@ -148,10 +142,26 @@ def get_upstream_basin(catchmentIdentifier):
 
     #convert geojson to ogr geom
     features = resp['features']
-    upstreamBasinGeom = GeometryCollection([shape(feature["geometry"]).buffer(0) for feature in features])
+    totalBasinGeom = GeometryCollection([shape(feature["geometry"]).buffer(0) for feature in features])
+
+    # d = 0.00045
+    # cf = 1.3  # cofactor
+
+    # upstreamBasinGeom = totalBasinGeom.symmetric_difference(catchment).buffer(-d).buffer(d*cf).simplify(d)
 
     print('finished getting upstream basin')
+    return totalBasinGeom
+# return totalBasinGeom
+
+def get_upstream_basin(catchment, totalBasinGeom):
+    """Get upstream basin geometry by subtracting the local catchment from the totalBasinGeom"""
+
+    d = 0.00045
+    cf = 1.3  # cofactor
+
+    upstreamBasinGeom = totalBasinGeom.symmetric_difference(catchment).buffer(-d).buffer(d*cf).simplify(d)
     return upstreamBasinGeom
+# return upstreamBasinGeom
 
 def merge_geometry(catchment, splitCatchment, upstreamBasin):
     """Attempt at merging geometries"""
@@ -166,9 +176,12 @@ def merge_geometry(catchment, splitCatchment, upstreamBasin):
     diff = catchment.difference(splitCatchment).buffer(-d).buffer(d*cf).simplify(d)
     mergedCatchmentGeom = upstreamBasin.difference(diff).buffer(-d).buffer(d*cf).simplify(d)
 
+    # mergedCatchmentGeom = upstreamBasin.union(splitCatchment).buffer(-d).buffer(d*cf).simplify(d)
+
     print('finished merging geometries')
    
     return mergedCatchmentGeom
+# return mergedCatchmentGeom
 
 def get_coordsys():
     """Get coordinate system of input flow direction raster"""
@@ -185,9 +198,9 @@ def get_coordsys():
         
         transformToRaster = pyproj.Transformer.from_crs(wgs84, dest_crs, always_xy=True).transform
         transformToWGS84 = pyproj.Transformer.from_crs(dest_crs, wgs84, always_xy=True).transform
-        print('transformToRaster: ', transformToRaster)
 
     return transformToRaster, transformToWGS84
+# return transformToRaster, transformToWGS84
 
 def project_point(x, y, transformToRaster):
     """Project point to flow direction raster crs"""
@@ -201,24 +214,22 @@ def project_point(x, y, transformToRaster):
     projected_xy = projected_point.coords[:][0]
 
     return  projected_xy
+# return  projected_xy
 
 def get_flowgrid(catchment_geom, transformToRaster, transformToWGS84):
-    """Use catchment bounding box to clip NHD Plus v2 flow direction raster"""
+    """Use a 90 meter buffer of the local catchment to clip NHD Plus v2 flow direction raster"""
 
     print('start clip raster')
     with rasterio.open(IN_FDR_COG, 'r') as ds:
 
         #get raster crs
         dest_crs = ds.crs
-        print('dest_crs: ', dest_crs)
 
         #create wgs84 crs
         wgs84 = pyproj.CRS('EPSG:4326')
-        print('wgs84: ', wgs84)
     
         #check to see if raster is already wgs84
         latlon = dest_crs == wgs84
-        print('latlon: ', latlon)
         
         #transform catchment geometry to use for clip
         projected_catchment_geom = transform_geom(transformToRaster, catchment_geom)
@@ -229,20 +240,44 @@ def get_flowgrid(catchment_geom, transformToRaster, transformToWGS84):
         #clip input fd
         flwdir, flwdir_transform = rasterio.mask.mask(ds, buffer_projected_catchment_geom, crop=True)
         print('finish clip raster')
-        print('flwdir_transform: ', flwdir_transform)
          
     #import clipped fdr into pyflwdir
     flw = pyflwdir.from_array(flwdir[0], ftype='d8', transform=flwdir_transform, latlon=latlon)
 
     return flw, flwdir_transform
+# return flw, flwdir_transform
 
-def split_catchment(flw, flwdir_transform, projected_xy, transformToWGS84): 
+def split_catchment(catchment_geom, projected_xy, transformToRaster, transformToWGS84): 
     """Produce split catchment delienation from X,Y"""
+
+    print('start split catchment...')
+
+    with rasterio.open(IN_FDR_COG, 'r') as ds:
+
+        #get raster crs
+        dest_crs = ds.crs
+
+        #create wgs84 crs
+        wgs84 = pyproj.CRS('EPSG:4326')
+    
+        #check to see if raster is already wgs84
+        latlon = dest_crs == wgs84
+        
+        #transform catchment geometry to use for clip
+        projected_catchment_geom = transform_geom(transformToRaster, catchment_geom)
+
+        #buffer catchment geometry by 0m before clipping flow direction raster
+        buffer_projected_catchment_geom = GeometryCollection([projected_catchment_geom.buffer(0)])
+        
+        #clip input fd
+        flwdir, flwdir_transform = rasterio.mask.mask(ds, buffer_projected_catchment_geom, crop=True)
+        print('finish clip raster')
+         
+    #import clipped fdr into pyflwdir
+    flw = pyflwdir.from_array(flwdir[0], ftype='d8', transform=flwdir_transform, latlon=latlon)
 
     #used for snapping click point
     stream_order = flw.stream_order()
-
-    print('start split catchment...')
 
     # delineate subbasins
     subbasins = flw.basins(xy=projected_xy)   # , streams=stream_order>4
@@ -262,6 +297,7 @@ def split_catchment(flw, flwdir_transform, projected_xy, transformToWGS84):
 
     print('finish split catchment...')
     return split_geom
+# return split_geom
 
 def get_onFlowline(projected_xy, flowlines, transformToRaster, transformToWGS84):
     """Determine if x,y is on a NHD Flowline (within 15m)"""
@@ -290,6 +326,7 @@ def get_onFlowline(projected_xy, flowlines, transformToRaster, transformToWGS84)
         onFlowline = False
         
     return onFlowline
+# return onFlowline
 
 def get_raindropPath(flw, projected_xy, nhdFlowline, flowlines, transformToRaster, transformToWGS84):
 
@@ -348,9 +385,9 @@ def get_raindropPath(flw, projected_xy, nhdFlowline, flowlines, transformToRaste
         i+=1
 
     if len(coordlist['coordinates']) < 2:
-        print('Failed to trace downstreampath! Try another point. ')
+        print('Failed to trace raindrop path! Try another point. ')
     if len(coordlist['coordinates']) >= 2:
-        print('traced downstreampath   ')
+        print('traced raindrop path   ')
     
     # Convert the dict of coords to ogr geom
     pathGeom = GeometryCollection([shape(coordlist)])
@@ -388,9 +425,9 @@ def get_raindropPath(flw, projected_xy, nhdFlowline, flowlines, transformToRaste
     
     # The first linestring in the snapPath geometry collection in the raindropPath
     raindropPath = snapPath[0]
-
+   
     return raindropPath
-
+# return raindropPath
 
 def get_intersectionPoint(x, y, onFlowline, *raindropPath):
     """Return the intersection point between the NHD Flowline and the raindropPath"""
@@ -399,13 +436,14 @@ def get_intersectionPoint(x, y, onFlowline, *raindropPath):
         intersectionPoint = Point(x, y)
 
     if onFlowline == False:
+        raindropPath = raindropPath[0]  # raindropPath is returned as a tuple, reset it to the first part of the tuple
         # The last point on the raindropPath is the intersectionPoint
         coordID = len(raindropPath.coords) - 1
         intersectionPoint = Point(raindropPath.coords[coordID][0], raindropPath.coords[coordID][1]) # The first two coords of the point are used incase the point has a Z value
         print('found intersection point')
 
     return intersectionPoint
-
+# return intersectionPoint
 
 def get_reachMeasure(intersectionPoint, flowlines, *raindropPath):
     """Collect NHD Flowline Reach Code and Measure"""
@@ -465,6 +503,7 @@ def get_reachMeasure(intersectionPoint, flowlines, *raindropPath):
     print('calculated measure and reach')
 
     return  streamInfo
+# return streamInfo
 
 def split_flowline(intersectionPoint, flowlines):
         
@@ -507,6 +546,16 @@ def split_flowline(intersectionPoint, flowlines):
         lastLineID = len(NHDFlowlinesCut) - 1
         upstreamFlowline = NHDFlowlinesCut[0]
         downstreamFlowline = NHDFlowlinesCut[lastLineID]
-    print('calculated measure and reach')
+    print('split NHD Flowline')
 
     return upstreamFlowline, downstreamFlowline
+# return upstreamFlowline, downstreamFlowline
+
+def merge_downstreamPath(downstreamFlowline, raindropPath):
+    """Merge downstreamFlowline and raindropPath"""
+
+    lines = downstreamFlowline, raindropPath
+
+    downstreamPath = linemerge(lines)
+    return downstreamPath
+# return downstreamPath

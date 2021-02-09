@@ -13,9 +13,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
 from datetime import datetime
 import splitcatchment
-import delineate
 import flowtrace
-import raindroptrace
 import time
 
 app = Flask(__name__)
@@ -38,11 +36,9 @@ def main():
 
     #start main program
     timeBefore = time.perf_counter()  
-    # results = splitcatchment.SplitCatchment(lng, lat)
-    # results = delineate.Delineate(lng,lat)
-    results = flowtrace.Flowtrace(lng, lat, True)
-    # results =  raindroptrace.RaindropTrace(lng,lat) # # #
-    print(results)
+    # results = splitcatchment.SplitCatchment(lng, lat, False)
+    results = flowtrace.Flowtrace(lng, lat, True, 'down')
+    print("results: ", type(results) , results, results.serialize())
     
     timeAfter = time.perf_counter() 
     totalTime = timeAfter - timeBefore
