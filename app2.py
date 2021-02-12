@@ -31,14 +31,23 @@ def main():
 
     lat = float(request.args.get('lat'))
     lng = float(request.args.get('lng'))
+    runsplitcatchment = request.args.get('runsplitcatchment')
+    truefalse = bool(request.args.get('truefalse'))
+    direction = request.args.get('direction')
+    # print('runsplitcatchment: ', type(runsplitcatchment), runsplitcatchment, 'truefalse: ', type(truefalse) , truefalse, 'direction: ', direction)
 
     print(lat,lng)
 
     #start main program
     timeBefore = time.perf_counter()  
-    # results = splitcatchment.SplitCatchment(lng, lat, False)
-    results = flowtrace.Flowtrace(lng, lat, True, 'down')
-    print("results: ", type(results) , results, results.serialize())
+    
+    if runsplitcatchment == 'true':
+        results = splitcatchment.SplitCatchment(lng, lat, truefalse)
+
+    if runsplitcatchment == 'false':
+        results = flowtrace.Flowtrace(lng, lat, truefalse, direction)
+
+    # print("results: ", type(results) , results, results.serialize())
     
     timeAfter = time.perf_counter() 
     totalTime = timeAfter - timeBefore

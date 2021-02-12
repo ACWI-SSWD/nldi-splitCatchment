@@ -1,5 +1,5 @@
 from utils import geom_to_geojson, get_local_catchment, get_local_flowlines, get_coordsys, project_point
-from utils import get_flowgrid, split_catchment, get_onFlowline, get_raindropPath, get_intersectionPoint, get_reachMeasure, split_flowline, merge_downstreamPath
+from utils import get_flowgrid, get_onFlowline, get_raindropPath, get_intersectionPoint, get_reachMeasure, split_flowline, merge_downstreamPath
 
 
 class Flowtrace:
@@ -132,15 +132,12 @@ class Flowtrace:
 
             # Outputs
             if self.direction == 'up':
-                # return upstreamFlowline
                 self.upstreamFlowline = geom_to_geojson(self.upstreamFlowlineGeom, 'upstreamFlowline')
-
+            
             if self.direction == 'down':
-                # return downstreamFlowline
                 self.downstreamFlowline = geom_to_geojson(self.downstreamFlowlineGeom, 'downstreamFlowline')
-        
+            
             if self.direction == 'none':
-                # return nhdFlowline
                 self.nhdFlowline = geom_to_geojson(self.nhdFlowlineGeom, 'nhdFlowline')
 
         if self.onFlowline == False:
@@ -151,32 +148,26 @@ class Flowtrace:
 
             # Outputs
             if self.direction == 'up' and self.raindropTrace == True:
-                # return upstreamFlowline, raindropPath
                 self.upstreamFlowline = geom_to_geojson(self.upstreamFlowlineGeom, 'upstreamFlowline')
                 self.raindropPath = geom_to_geojson(self.raindropPathGeom, 'raindropPath')
-
+            
             if self.direction == 'down' and self.raindropTrace == True:
-                # return downstreamFlowline, raindropPath
                 # self.downstreamFlowline = geom_to_geojson(self.downstreamFlowlineGeom, 'downstreamFlowline')
                 # self.raindropPath = geom_to_geojson(self.raindropPathGeom, 'raindropPath')
-                self.downstreamPathGeom = merge_downstreamPath(self.downstreamFlowlineGeom, self.raindropPathGeom)
+                self.downstreamPathGeom = merge_downstreamPath(self.raindropPathGeom, self.downstreamFlowlineGeom)
                 self.downstreamPath = geom_to_geojson(self.downstreamPathGeom, 'downstreamPath')
-
+            
             if self.direction == 'none' and self.raindropTrace == True:
-                # return nhdFlowline, raindropPath
                 self.nhdFlowline = geom_to_geojson(self.nhdFlowlineGeom, 'nhdFlowline')
                 self.raindropPath = geom_to_geojson(self.raindropPathGeom, 'raindropPath')
-
+            
             if self.direction == 'up' and self.raindropTrace == False:
-                # return upstreamFlowline
                  self.upstreamFlowline = geom_to_geojson(self.upstreamFlowlineGeom, 'upstreamFlowline')
-
+            
             if self.direction == 'down' and self.raindropTrace == False:
-                # return downstreamFlowline
                 self.downstreamFlowline = geom_to_geojson(self.downstreamFlowlineGeom, 'downstreamFlowline')
-
+            
             if self.direction == 'none' and self.raindropTrace == False:
-                # return nhdFlowline
                 self.nhdFlowline = geom_to_geojson(self.nhdFlowlineGeom, 'nhdFlowline')
 
         # self.intersectionPoint = geom_to_geojson(self.intersectionPointGeom, 'intersectionPoint')

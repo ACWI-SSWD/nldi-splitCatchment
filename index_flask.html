@@ -24,7 +24,12 @@
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/gokertanrisever/leaflet-ruler@master/src/leaflet-ruler.css" integrity="sha384-P9DABSdtEY/XDbEInD3q+PlL+BjqPCXGcF8EkhtKSfSTr/dS5PBKa9+/PMkW2xsY" crossorigin="anonymous">  
     <script src="https://cdn.jsdelivr.net/gh/gokertanrisever/leaflet-ruler@master/src/leaflet-ruler.js" integrity="sha384-N2S8y7hRzXUPiepaSiUvBH1ZZ7Tc/ZfchhbPdvOE5v3aBBCIepq9l+dBJPFdo1ZJ" crossorigin="anonymous"></script>
-    
+
+
+    <!-- Easy Button -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-easybutton@2/src/easy-button.css">
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-easybutton@2/src/easy-button.js"></script>
+
 
 	<style>
 
@@ -51,13 +56,17 @@
 
 <script>
 var map;
-var startPoint, border, catchment, splitCatchment, upstreamBasin, mergedCatchment, intersectionPoint, raindropPath, nhdFlowline, upstreamFlowline, downstreamFlowline, downstreamPath;
+var startPoint, border, catchment, splitCatchment, upstreamBasin, mergedCatchment;
+var intersectionPoint, raindropPath, nhdFlowline, upstreamFlowline, downstreamFlowline, downstreamPath;
 var features;
 var layerControl;
 var streamGridLayer;
 var loadingToast;
 var startTime;
 var region;
+var runsplitcatchment = true;
+var truefalse = 'True';
+var direction = 'none';
 
 //main document ready function
 $(document).ready(function () {
@@ -81,8 +90,87 @@ $(document).ready(function () {
         zoomControl: false
 	});
 
+    var splitcatchmentButton = L.easyButton(
+        {
+            states: [{
+                stateName: 'run-splitcatchment',        // name the state
+                icon:      '<strong>S</strong>',               // and define its properties
+                title:     'Splitcatchment',      // like its title
+                onClick: function(control) {       // and its callback
+                    control.state('run-flowtrace');
+                    runsplitcatchment = false ;   // change state on click!
+                    directionButton.addTo(map);
+                }
+            }, {
+                stateName: 'run-flowtrace',
+                icon:      '<strong>F</strong>',
+                title:     'Flowtrace',
+                onClick: function(control) {
+                    control.state('run-splitcatchment');
+                    runsplitcatchment = true;
+                    directionButton.remove(map);
+                }
+            }]
+    })
+
+    splitcatchmentButton.addTo(map);
+
+    var truefalseButton = L.easyButton(
+        {
+            states: [{
+                stateName: 'true',        // name the state
+                icon:      '<strong>True</strong>',               // and define its properties
+                title:     'True',      // like its title
+                onClick: function(control) {       // and its callback
+                    control.state('false');
+                    truefalse = null ;   // change state on click!
+                }
+            }, {
+                stateName: 'false',
+                icon:      '<strong>False</strong>',
+                title:     'False',
+                onClick: function(control) {
+                    control.state('true');
+                    truefalse = 'True';
+                }
+            }]
+    })
+    truefalseButton.addTo(map);
+
+    var directionButton = L.easyButton(
+        {
+            states: [{
+                stateName:  'up',
+                icon:       '<strong>Up</strong>',
+                title:      'Up',
+                onClick: function(control) {
+                    control.state('down');
+                    direction = 'down';
+                }
+            },{
+                stateName:  'down',
+                icon:       '<strong>Down</strong>',
+                title:      'Down',
+                onClick: function(control) {
+                    control.state('none');
+                    direction = 'none';
+                }
+            },{
+                stateName:  'none',
+                icon:       '<strong>None</strong>',
+                title:      'None',
+                onClick: function(control) {
+                    control.state('up');
+                    direction = 'up';
+                }
+
+            }]
+
+    })
+
     layerControl = L.control.layers({'natGeo Basemap': natGeo}).addTo(map);
     //L.control.ruler().addTo(map);
+
 
     //show str900 grid
     var url = 'https://gis.streamstats.usgs.gov/arcgis/rest/services/StreamStats/stateServices/MapServer';
@@ -92,7 +180,7 @@ $(document).ready(function () {
     }).addTo(map);
     layerControl.addOverlay(streamGridLayer , "str900");
 
-    //containger featuregroup used for zooming
+    //container featuregroup used for zooming
     features = L.featureGroup();
 
     map.on('zoomend', changeCursor );
@@ -184,7 +272,6 @@ function delineatePoint(e) {
         layerControl.removeLayer(downstreamFlowline);
         map.removeLayer(downstreamFlowline)
     }
-
     if (downstreamPath) {
         layerControl.removeLayer(downstreamPath);
         map.removeLayer(downstreamPath)
@@ -192,8 +279,13 @@ function delineatePoint(e) {
 
     var data = {
         lat: e.latlng.lat,
-        lng: e.latlng.lng
+        lng: e.latlng.lng,
+        runsplitcatchment: runsplitcatchment,
+        truefalse: truefalse,
+        direction: direction
     }
+
+    // var runsplitcatchment = runsplitcatchment
     
     // var data = {
     //     lat: 44.00431,

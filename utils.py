@@ -4,9 +4,9 @@ import rasterio.mask
 import pyflwdir
 import pyproj
 from pyproj import Geod
-from shapely.ops import transform, split, snap, linemerge
+from shapely.ops import transform, split, snap, linemerge, unary_union
 import shapely.geometry
-from shapely.geometry import shape, mapping, Point, GeometryCollection, LineString
+from shapely.geometry import shape, mapping, Point, GeometryCollection, LineString, MultiLineString
 import json
 import time
 import numpy as np
@@ -122,6 +122,8 @@ def get_local_flowlines(catchmentIdentifier):
     # Convert the flowline to a geometry colelction to be exported
     nhdGeom = flowlines['features'][0]['geometry']
     nhdFlowline = GeometryCollection([shape(nhdGeom)])[0]
+    nhdFlowline = LineString([xy[0:2] for xy in list(nhdFlowline[0].coords)])  # Convert xyz to xy
+    print('nhdFlowline: ', nhdFlowline)
 
     return flowlines, nhdFlowline
 # return flowlines, nhdFlowline
@@ -513,6 +515,7 @@ def split_flowline(intersectionPoint, flowlines):
     # Convert the flowline to a geometry colelction to be exported
     nhdGeom = flowlines['features'][0]['geometry']
     nhdFlowline = GeometryCollection([shape(nhdGeom)])[0]
+    nhdFlowline = LineString([xy[0:2] for xy in list(nhdFlowline[0].coords)])  # Convert xyz to xy
 
     # If the intersectionPoint is on the NHD Flowline, split the flowline at the point
     if nhdFlowline.intersects(intersectionPoint) == True:
@@ -551,11 +554,13 @@ def split_flowline(intersectionPoint, flowlines):
     return upstreamFlowline, downstreamFlowline
 # return upstreamFlowline, downstreamFlowline
 
-def merge_downstreamPath(downstreamFlowline, raindropPath):
+def merge_downstreamPath(raindropPath, downstreamFlowline):
     """Merge downstreamFlowline and raindropPath"""
 
-    lines = downstreamFlowline, raindropPath
-
-    downstreamPath = linemerge(lines)
+    # Pull out coords, place in a list and convert to a Linestring
+    # This ensures that the returned geometry is a single Linestring and not a Multilinestring
+    lines = MultiLineString([raindropPath, downstreamFlowline])
+    outcoords = [list(i.coords) for i in lines]
+    downstreamPath =  LineString([i for sublist in outcoords for i in sublist]) 
     return downstreamPath
 # return downstreamPath

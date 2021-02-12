@@ -1,0 +1,23 @@
+
+
+/splitcatchment
+args:
+lat
+lng
+upstream: bool
+response:
+(upstream=flase) split_catchment 
+(upstream=true) mergedCatchment or split_catchment & upstreamBasin
+
+
+/flowtrace
+args:
+lat
+lng
+raindropTrace: boolean
+direction: up, down, none (default)
+response:
+flowline, steamInfo
+or
+downstream flowtrace merged with downstream NLDI flowline
+ 
