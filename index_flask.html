@@ -142,7 +142,7 @@ $(document).ready(function () {
             states: [{
                 stateName:  'up',
                 icon:       '<strong>Up</strong>',
-                title:      'Up',
+                title:      'Upstream',
                 onClick: function(control) {
                     control.state('down');
                     direction = 'down';
@@ -150,15 +150,15 @@ $(document).ready(function () {
             },{
                 stateName:  'down',
                 icon:       '<strong>Down</strong>',
-                title:      'Down',
+                title:      'Downstream',
                 onClick: function(control) {
                     control.state('none');
                     direction = 'none';
                 }
             },{
                 stateName:  'none',
-                icon:       '<strong>None</strong>',
-                title:      'None',
+                icon:       '<strong>Entire</strong>',
+                title:      'Entire',
                 onClick: function(control) {
                     control.state('up');
                     direction = 'up';
