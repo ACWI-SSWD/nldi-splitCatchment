@@ -15,10 +15,15 @@ from datetime import datetime
 import splitcatchment
 import flowtrace
 import time
+import requests
 
 app = Flask(__name__)
 cors = CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
+url = "https://nhgf.wim.usgs.gov/processes/nldi-splitcatchment/jobs?response=document"
+
+headers = {}# CaseInsensitiveDict()
+headers["Content-Type"] = "application/json"
 
 @app.route("/")
 
@@ -42,15 +47,36 @@ def main():
     timeBefore = time.perf_counter()  
     
     if runsplitcatchment == 'true':
-        results = splitcatchment.SplitCatchment(lng, lat, truefalse)
+        data = {
+            "inputs": [
+                {
+                "id": "lat",
+                "type": "text/plain",
+                "value": lat
+                },
+                {
+                "id": "lng",
+                "type": "text/plain",
+                "value": lng
+                },
+                {
+                "id": "upstream",
+                "type": "text/plain",
+                "value": truefalse
+                }
+            ]
+        }
+            
+        results = requests.post(url, headers=headers, data=data)
 
     if runsplitcatchment == 'false':
         results = flowtrace.Flowtrace(lng, lat, truefalse, direction)
 
-    print("results: ", type(results) , results, results.serialize())
+    print("results: ", type(results) , results, results.status_code)
     
     timeAfter = time.perf_counter() 
     totalTime = timeAfter - timeBefore
     print("Total Time:",totalTime)
-    return jsonify(results.serialize())
-    #return results.serialize()
+    #return jsonify(results.serialize())
+    return results.text
+    

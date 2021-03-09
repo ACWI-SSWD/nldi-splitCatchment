@@ -1,5 +1,6 @@
 from utils import geom_to_geojson, get_local_catchment, get_local_flowlines, get_coordsys, project_point
 from utils import get_total_basin, split_catchment, get_onFlowline, get_upstream_basin, merge_geometry
+import geojson
 
 class SplitCatchment:
     """Define inputs and outputs for the main SplitCatchment class"""
@@ -39,27 +40,34 @@ class SplitCatchment:
 
     def serialize(self):
         if self.upstream == False:
-            return {
-                'catchment': self.catchment,
-                'splitCatchment': self.splitCatchment, 
-            }
+            feature1 = geojson.Feature(geometry=self.catchment, id='catchment')
+            feature2 = geojson.Feature(geometry=self.splitCatchment, id='splitCatchment')
+            featurecollection = geojson.FeatureCollection([feature1, feature2])
+            return featurecollection
+            # return {
+            #     'catchment': self.catchment,
+            #     'splitCatchment': self.splitCatchment, 
+            # }
         if self.upstream == True and self.onFlowline == True:
-            return {
-                'catchment': self.catchment,
-                'mergedCatchment': self.mergedCatchment
-            }
+            feature1 = geojson.Feature(geometry=self.catchment, id='catchment')
+            feature2 = geojson.Feature(geometry=self.mergedCatchment, id='mergedCatchment')
+            featurecollection = geojson.FeatureCollection([feature1, feature2])
+            return featurecollection
+            # return {
+            #     'catchment': self.catchment,
+            #     'mergedCatchment': self.mergedCatchment
+            # }
         if self.upstream == True and self.onFlowline == False:
-            return {
-                'catchment': self.catchment,
-                'splitCatchment': self.splitCatchment,
-                'upstreamBasin': self.upstreamBasin
-            }
-        # return {
-        #     'catchment': self.catchment,
-        #     'splitCatchment': self.splitCatchment,
-        #     'upstreamBasin': self.upstreamBasin,
-        #     'mergedCatchment': self.mergedCatchment
-        # }
+            feature1 = geojson.Feature(geometry=self.catchment, id='catchment')
+            feature2 = geojson.Feature(geometry=self.splitCatchment, id='splitCatchment')
+            feature3 = geojson.Feature(geometry=self.upstreamBasin, id='upstreamBasin')
+            featurecollection = geojson.FeatureCollection([feature1, feature2])
+            return featurecollection
+            # return {
+            #     'catchment': self.catchment,
+            #     'splitCatchment': self.splitCatchment,
+            #     'upstreamBasin': self.upstreamBasin
+            # }
 
 ## main functions
     def run(self):

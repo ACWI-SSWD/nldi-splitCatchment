@@ -1,6 +1,6 @@
 from utils import geom_to_geojson, get_local_catchment, get_local_flowlines, get_coordsys, project_point
 from utils import get_flowgrid, get_onFlowline, get_raindropPath, get_intersectionPoint, get_reachMeasure, split_flowline, merge_downstreamPath
-
+import geojson
 
 class Flowtrace:
     """Define inputs and outputs for the main Flowtrace class"""
@@ -63,54 +63,83 @@ class Flowtrace:
         # }
         if self.onFlowline == True:
             if self.direction == 'up':
-                return {
-                    'streamInfo': self.streamInfo,
-                    'upstreamFlowline': self.upstreamFlowline
-                }
+                feature1 = geojson.Feature(geometry=self.upstreamFlowline, id='upstreamFlowline', property=self.streamInfo)
+                featurecollection = geojson.FeatureCollection([feature1])
+                return featurecollection
+                # return {
+                #     'streamInfo': self.streamInfo,
+                #     'upstreamFlowline': self.upstreamFlowline
+                # }
             if self.direction == 'down':
-                return {                    
-                    'streamInfo': self.streamInfo, 
-                    'downstreamFlowline': self.downstreamFlowline
-                }
+                feature1 = geojson.Feature(geometry=self.downstreamFlowline, id='downstreamFlowline', property=self.streamInfo)
+                featurecollection = geojson.FeatureCollection([feature1])
+                return featurecollection
+                # return {                    
+                #     'streamInfo': self.streamInfo, 
+                #     'downstreamFlowline': self.downstreamFlowline
+                # }
             if self.direction == 'none':
-                return {
-                    'nhdFlowline': self.nhdFlowline,
-                    'streamInfo': self.streamInfo
-                }
+                feature1 = geojson.Feature(geometry=self.nhdFlowline, id='nhdFlowline', property=self.streamInfo)
+                featurecollection = geojson.FeatureCollection([feature1])
+                return featurecollection
+                # return {
+                #     'nhdFlowline': self.nhdFlowline,
+                #     'streamInfo': self.streamInfo
+                # }
         
         if self.onFlowline == False:
             if self.direction == 'up' and self.raindropTrace == True:
-                return {
-                    'raindropPath': self.raindropPath,
-                    'streamInfo': self.streamInfo, 
-                    'upstreamFlowline': self.upstreamFlowline
-                }
+                feature1 = geojson.Feature(geometry=self.upstreamFlowline, id='upstreamFlowline', property=self.streamInfo)
+                feature2 = geojson.Feature(geometry=self.raindropPath, id='raindropPath')
+                featurecollection = geojson.FeatureCollection([feature1, feature2])
+                return featurecollection
+                # return {
+                #     'raindropPath': self.raindropPath,
+                #     'streamInfo': self.streamInfo, 
+                #     'upstreamFlowline': self.upstreamFlowline
+                # }
             if self.direction == 'down' and self.raindropTrace == True:
-                return {
-                    'streamInfo': self.streamInfo,  
-                    'downstreamPath': self.downstreamPath
-                }
+                feature1 = geojson.Feature(geometry=self.downstreamPath, id='downstreamPath', property=self.streamInfo)
+                featurecollection = geojson.FeatureCollection([feature1])
+                return featurecollection
+                # return {
+                #     'streamInfo': self.streamInfo,  
+                #     'downstreamPath': self.downstreamPath
+                # }
             if self.direction == 'none' and self.raindropTrace == True:
-                return {
-                    'raindropPath': self.raindropPath,
-                    'nhdFlowline': self.nhdFlowline,
-                    'streamInfo': self.streamInfo
-                }
+                feature1 = geojson.Feature(geometry=self.nhdFlowline, id='nhdFlowline', property=self.streamInfo)
+                feature2 = geojson.Feature(geometry=self.raindropPath, id='raindropPath')
+                featurecollection = geojson.FeatureCollection([feature1, feature2])
+                return featurecollection
+                # return {
+                #     'raindropPath': self.raindropPath,
+                #     'nhdFlowline': self.nhdFlowline,
+                #     'streamInfo': self.streamInfo
+                # }
             if self.direction == 'up' and self.raindropTrace == False:
-                return {
-                    'streamInfo': self.streamInfo, 
-                    'upstreamFlowline': self.upstreamFlowline
-                }
+                feature1 = geojson.Feature(geometry=self.upstreamPath, id='upstreamPath', property=self.streamInfo)
+                featurecollection = geojson.FeatureCollection([feature1])
+                return featurecollection
+                # return {
+                #     'streamInfo': self.streamInfo, 
+                #     'upstreamFlowline': self.upstreamFlowline
+                # }
             if self.direction == 'down' and self.raindropTrace == False:
-                return {
-                    'streamInfo': self.streamInfo,  
-                    'downstreamFlowline': self.downstreamFlowline
-                }
+                feature1 = geojson.Feature(geometry=self.downstreamFlowline, id='downstreamFlowline', property=self.streamInfo)
+                featurecollection = geojson.FeatureCollection([feature1])
+                return featurecollection
+                # return {
+                #     'streamInfo': self.streamInfo,  
+                #     'downstreamFlowline': self.downstreamFlowline
+                # }
             if self.direction == 'none' and self.raindropTrace == False:
-                return {
-                    'nhdFlowline': self.nhdFlowline,
-                    'streamInfo': self.streamInfo
-                }
+                feature1 = geojson.Feature(geometry=self.nhdFlowline, id='nhdFlowline', property=self.streamInfo)
+                featurecollection = geojson.FeatureCollection([feature1])
+                return featurecollection
+                # return {
+                #     'nhdFlowline': self.nhdFlowline,
+                #     'streamInfo': self.streamInfo
+                # }
                 
 
 ## main functions

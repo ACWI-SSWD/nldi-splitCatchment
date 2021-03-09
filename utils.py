@@ -6,7 +6,7 @@ import pyproj
 from pyproj import Geod
 from shapely.ops import transform, split, snap, linemerge, unary_union
 import shapely.geometry
-from shapely.geometry import shape, mapping, Point, GeometryCollection, LineString, MultiLineString
+from shapely.geometry import shape, mapping, Point, GeometryCollection, LineString, MultiLineString, Polygon
 import json
 import time
 import numpy as np
@@ -89,7 +89,9 @@ def get_local_catchment(x, y):
 
     #get main catchment geometry polygon
     features = resp['features']
-    catchmentGeom = GeometryCollection([shape(feature["geometry"]).buffer(0) for feature in features])
+    # for feature in features:
+    #     print('feature: ', feature)
+    catchmentGeom = Polygon(features[0]["geometry"]['coordinates'][0][0])
 
     print('got local catchment:', catchmentIdentifier)
     return catchmentIdentifier, catchmentGeom
@@ -123,7 +125,7 @@ def get_local_flowlines(catchmentIdentifier):
     nhdGeom = flowlines['features'][0]['geometry']
     nhdFlowline = GeometryCollection([shape(nhdGeom)])[0]
     nhdFlowline = LineString([xy[0:2] for xy in list(nhdFlowline[0].coords)])  # Convert xyz to xy
-    print('nhdFlowline: ', nhdFlowline)
+    # print('nhdFlowline: ', nhdFlowline)
 
     return flowlines, nhdFlowline
 # return flowlines, nhdFlowline
@@ -200,6 +202,7 @@ def get_coordsys():
         
         transformToRaster = pyproj.Transformer.from_crs(wgs84, dest_crs, always_xy=True).transform
         transformToWGS84 = pyproj.Transformer.from_crs(dest_crs, wgs84, always_xy=True).transform
+        # print('transformToRaster' , transformToRaster)
 
     return transformToRaster, transformToWGS84
 # return transformToRaster, transformToWGS84
@@ -449,6 +452,7 @@ def get_intersectionPoint(x, y, onFlowline, *raindropPath):
 
 def get_reachMeasure(intersectionPoint, flowlines, *raindropPath):
     """Collect NHD Flowline Reach Code and Measure"""
+    print('intersectionPoint: ', type(intersectionPoint), intersectionPoint)
     
     # Set Geoid to measure distances in meters
     geod = Geod(ellps="WGS84")
@@ -465,7 +469,8 @@ def get_reachMeasure(intersectionPoint, flowlines, *raindropPath):
     # Create streamInfo dict and add some data
     streamInfo = {'gnis_name' : streamname,
                     'comid' : flowlines['features'][0]['properties']['comid'],
-                    'lengthkm' : flowlines['features'][0]['properties']['lengthkm'], 
+                    # 'lengthkm' : flowlines['features'][0]['properties']['lengthkm'], 
+                    'intersectionPoint' : (intersectionPoint.coords[0][1], intersectionPoint.coords[0][0]),
                     'reachcode' : flowlines['features'][0]['properties']['reachcode']}
 
     # Add more data to the streamInfo dict
