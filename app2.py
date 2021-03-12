@@ -14,6 +14,7 @@ from flask_cors import CORS, cross_origin
 from datetime import datetime
 import splitcatchment
 import flowtrace
+import nldi_xstool 
 import time
 
 app = Flask(__name__)
@@ -34,7 +35,8 @@ def main():
     runsplitcatchment = request.args.get('runsplitcatchment')
     truefalse = bool(request.args.get('truefalse'))
     direction = request.args.get('direction')
-    # print('runsplitcatchment: ', type(runsplitcatchment), runsplitcatchment, 'truefalse: ', type(truefalse) , truefalse, 'direction: ', direction)
+    xstool = request.args.get('xstool')
+    print('runsplitcatchment: ', type(runsplitcatchment), runsplitcatchment, 'truefalse: ', type(truefalse) , truefalse, 'direction: ', direction, 'xstool', xstool)
 
     print(lat,lng)
 
@@ -43,14 +45,24 @@ def main():
     
     if runsplitcatchment == 'true':
         results = splitcatchment.SplitCatchment(lng, lat, truefalse)
+        
 
-    if runsplitcatchment == 'false':
+    if runsplitcatchment == 'false' and xstool == 'false':
         results = flowtrace.Flowtrace(lng, lat, truefalse, direction)
 
-    print("results: ", type(results) , results, results.serialize())
+    if runsplitcatchment == 'false' and xstool == 'true':
+        results = nldi_xstool.getXSAtPoint((lat, lng), 100, 100)
+        results = results.to_json()
+
+    print("results: ", type(results) , results)
     
     timeAfter = time.perf_counter() 
     totalTime = timeAfter - timeBefore
     print("Total Time:",totalTime)
-    return jsonify(results.serialize())
+    if runsplitcatchment == 'true':
+        return jsonify(results.serialize())
+    if runsplitcatchment == 'false' and xstool == 'false':
+        return jsonify(results.serialize())
+    if runsplitcatchment == 'false' and xstool == 'true':
+        return results
     #return results.serialize()

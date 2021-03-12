@@ -193,6 +193,7 @@ def get_coordsys():
     with rasterio.open(IN_FDR_COG, 'r') as ds:
         #get raster crs
         dest_crs = ds.crs
+        # print('dest_crs: ', dest_crs)
 
         #create wgs84 crs
         wgs84 = pyproj.CRS('EPSG:4326')
@@ -202,7 +203,6 @@ def get_coordsys():
         
         transformToRaster = pyproj.Transformer.from_crs(wgs84, dest_crs, always_xy=True).transform
         transformToWGS84 = pyproj.Transformer.from_crs(dest_crs, wgs84, always_xy=True).transform
-        # print('transformToRaster' , transformToRaster)
 
     return transformToRaster, transformToWGS84
 # return transformToRaster, transformToWGS84

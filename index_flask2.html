@@ -65,6 +65,7 @@ var loadingToast;
 var startTime;
 var region;
 var runsplitcatchment = true;
+var runxstool = false;
 var truefalse = 'True';
 var direction = 'none';
 
@@ -90,7 +91,7 @@ $(document).ready(function () {
         zoomControl: false
 	});
 
-    var splitcatchmentButton = L.easyButton(
+    var functionButton = L.easyButton(
         {
             states: [{
                 stateName: 'run-splitcatchment',        // name the state
@@ -106,14 +107,27 @@ $(document).ready(function () {
                 icon:      '<strong>F</strong>',
                 title:     'Flowtrace',
                 onClick: function(control) {
+                    control.state('run-xstool');
+                    runxstool = true;
+                    runsplitcatchment = false ;
+                    directionButton.remove(map);
+                    truefalseButton.remove(map);
+                }
+            }, {
+                stateName: 'run-xstool',
+                icon:      '<strong>XS</strong>',
+                title:     'Stream Crosssection',
+                onClick: function(control) {
                     control.state('run-splitcatchment');
                     runsplitcatchment = true;
-                    directionButton.remove(map);
+                    runxstool = false;
+                    truefalseButton.addTo(map);
                 }
-            }]
+            }
+        ]
     })
 
-    splitcatchmentButton.addTo(map);
+    functionButton.addTo(map);
 
     var truefalseButton = L.easyButton(
         {
@@ -282,6 +296,7 @@ function delineatePoint(e) {
         lng: e.latlng.lng,
         runsplitcatchment: runsplitcatchment,
         truefalse: truefalse,
+        xstool: runxstool,
         direction: direction
     }
 
