@@ -40,34 +40,34 @@ class SplitCatchment:
 
     def serialize(self):
         if self.upstream == False:
-            feature1 = geojson.Feature(geometry=self.catchment, id='catchment')
+            feature1 = geojson.Feature(geometry=self.catchment, id='catchment', properties={'catchmentID':self.catchmentIdentifier})
             feature2 = geojson.Feature(geometry=self.splitCatchment, id='splitCatchment')
             featurecollection = geojson.FeatureCollection([feature1, feature2])
-            return featurecollection
             # return {
             #     'catchment': self.catchment,
             #     'splitCatchment': self.splitCatchment, 
             # }
         if self.upstream == True and self.onFlowline == True:
-            feature1 = geojson.Feature(geometry=self.catchment, id='catchment')
+            feature1 = geojson.Feature(geometry=self.catchment, id='catchment', properties={'catchmentID':self.catchmentIdentifier})
             feature2 = geojson.Feature(geometry=self.mergedCatchment, id='mergedCatchment')
             featurecollection = geojson.FeatureCollection([feature1, feature2])
-            return featurecollection
             # return {
             #     'catchment': self.catchment,
             #     'mergedCatchment': self.mergedCatchment
             # }
         if self.upstream == True and self.onFlowline == False:
-            feature1 = geojson.Feature(geometry=self.catchment, id='catchment')
+            feature1 = geojson.Feature(geometry=self.catchment, id='catchment', properties={'catchmentID':self.catchmentIdentifier})
             feature2 = geojson.Feature(geometry=self.splitCatchment, id='splitCatchment')
             feature3 = geojson.Feature(geometry=self.upstreamBasin, id='upstreamBasin')
             featurecollection = geojson.FeatureCollection([feature1, feature2])
-            return featurecollection
             # return {
             #     'catchment': self.catchment,
             #     'splitCatchment': self.splitCatchment,
             #     'upstreamBasin': self.upstreamBasin
             # }
+        
+        # print(featurecollection)
+        return featurecollection
 
 ## main functions
     def run(self):

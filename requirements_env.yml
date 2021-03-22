@@ -2,43 +2,42 @@ name: nldi-tools
 channels:
 - conda-forge
 dependencies:
- - python=3.6.8
- - py3dep
- - gdal
- - pyflwdir
- - requests
- - rasterio=1.1.0
- - proj=6.2.1
- - pyproj=2.6.1
- - geopandas
- - numpy
- - shapely
- - geojson
- - flask
- - flask-cors
- - pip
- - bump2version
- - wheel
- - watchdog
- - flake8
- - tox
- - coverage
- - Sphinx
- - twine
- - Click
- - pytest
- - pytest-runner
- - hydrodata
- - py3dep
- - pygeoogc
- - pygeoutils
- - folium
- - lxml
- - matplotlib
- - xarray
- - dask
- - netcdf4
- - bottleneck
- - jupyterlab
- - descartes
- - numba
+- python=3.6.8
+- rasterio=1.1.0
+- proj=6.2.1
+- pyproj=2.6.1
+- Click
+- Sphinx
+- bottleneck
+- bump2version
+- coverage
+- dask
+- descartes
+- flake8
+- flask
+- flask-cors
+- folium
+- gdal
+- geojson
+- geopandas
+- hydrodata
+- jupyterlab
+- lxml
+- matplotlib
+- netcdf4
+- numba
+- numpy
+- pip
+- py3dep
+- pyflwdir
+- pygeoogc
+- pygeoutils
+- pytest
+- pytest-runner
+- requests
+- shapely
+- tox
+- twine
+- watchdog
+- wheel
+- xarray

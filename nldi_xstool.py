@@ -2,7 +2,8 @@
 from XSGen import XSGen
 import requests
 import json
-import py3dep
+from pygeoogc import WMS
+from py3dep import getmap
 # from pynhd import NLDI
 import xarray as xr
 from matplotlib import pyplot as plt
@@ -53,7 +54,7 @@ def getXSAtPoint(point, numpoints, width, file=None):
     # get topo polygon with buffer to ensure there is enough topography to interpolate xs line
     # With coarsest DEM (30m) 100. m should
     bb = xs_line.total_bounds - ((100., 100., -100., -100.))
-    dem = py3dep.get_map("DEM", tuple(bb), resolution=10, geo_crs="EPSG:3857", crs="epsg:3857")
+    dem = get_map("DEM", tuple(bb), resolution=10, geo_crs="EPSG:3857", crs="epsg:3857")  # py3dep.getmap
     x,y = xs.get_xs_points()
     dsi = dem.interp(x=('z', x), y=('z', y))
     pdsi = dsi.to_dataframe()

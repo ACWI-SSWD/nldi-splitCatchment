@@ -430,12 +430,12 @@ function delineatePoint(e) {
                     }}).addTo(map);
                     nhdFlowline.addTo(features)
                     layerControl.addOverlay(nhdFlowline , "NHD Flowlines");
-                    nhdFlowline.bindPopup('<b>Stream name: </b>' + item['property']['gnis_name'] +
-                                            '<br><b>Comid: </b>' + item['property']['comid'] + '</br>' +
-                                            '<b>Reach Code: </b>' + item['property']['reachcode'] +
-                                            '<br><b>Measure: </b> 0:' + item['property']['measure'] + '</br>' +
-                                            '<b>Raindrop Path Length: </b>' + item['property']['raindropPathDist'] + ' meters' +
-                                            '<br><b>Intersection Point: </b>' + item['property']['intersectionPoint'][0] + ', ' + item['property']['intersectionPoint'][1] + '</br>').openPopup();
+                    nhdFlowline.bindPopup('<b>Stream name: </b>' + item['properties']['gnis_name'] +
+                                            '<br><b>Comid: </b>' + item['properties']['comid'] + '</br>' +
+                                            '<b>Reach Code: </b>' + item['properties']['reachcode'] +
+                                            '<br><b>Measure: </b> 0:' + item['properties']['measure'] + '</br>' +
+                                            '<b>Raindrop Path Length: </b>' + item['properties']['raindropPathDist'] + ' meters' +
+                                            '<br><b>Intersection Point: </b>' + item['properties']['intersectionPoint'][0] + ', ' + item['properties']['intersectionPoint'][1] + '</br>').openPopup();
 
                 }
                 
