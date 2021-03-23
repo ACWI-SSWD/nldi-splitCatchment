@@ -28,28 +28,11 @@ IN_FDR_COG = '/vsicurl/https://prod-is-usgs-sb-prod-publish.s3.amazonaws.com/5fe
 
 
 ## functions
-def geom_to_geojson(geom, name):      # , write_output=False
+def geom_to_geojson(geom):      # , write_output=False
     """Return a geojson from an OGR geom object"""
-
-    # from pyproj import Geod
-    from shapely import wkt
-
-    # specify a named ellipsoid
-    geod = Geod(ellps="WGS84")
-
-    poly = geom
-    #area = abs(geod.geometry_area_perimeter(poly)[0])
-
-    #print(name, 'area: {:12.3f} mi^2'.format(area*0.00000038610))
 
     geojson_dict = mapping(geom)
 
-    # if write_output:
-    #     f = open(OUT_PATH + name + '.geojson','w')
-    #     f.write(json.dumps(geojson_dict))
-    #     f.close()
-    #     print('Exported geojson:', name)
-    
     return geojson_dict
 # return geojson_dict
 

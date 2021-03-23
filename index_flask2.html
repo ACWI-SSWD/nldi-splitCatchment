@@ -25,7 +25,6 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/gokertanrisever/leaflet-ruler@master/src/leaflet-ruler.css" integrity="sha384-P9DABSdtEY/XDbEInD3q+PlL+BjqPCXGcF8EkhtKSfSTr/dS5PBKa9+/PMkW2xsY" crossorigin="anonymous">  
     <script src="https://cdn.jsdelivr.net/gh/gokertanrisever/leaflet-ruler@master/src/leaflet-ruler.js" integrity="sha384-N2S8y7hRzXUPiepaSiUvBH1ZZ7Tc/ZfchhbPdvOE5v3aBBCIepq9l+dBJPFdo1ZJ" crossorigin="anonymous"></script>
 
-
     <!-- Easy Button -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-easybutton@2/src/easy-button.css">
     <script src="https://cdn.jsdelivr.net/npm/leaflet-easybutton@2/src/easy-button.js"></script>
@@ -56,7 +55,7 @@
 
 <script>
 var map;
-var startPoint, border, catchment, splitCatchment, upstreamBasin, mergedCatchment;
+var startPoint, border, catchment, splitCatchment, upstreamBasin, mergedCatchment, streamCrossSection;
 var intersectionPoint, raindropPath, nhdFlowline, upstreamFlowline, downstreamFlowline, downstreamPath;
 var features;
 var layerControl;
@@ -67,7 +66,7 @@ var region;
 var runsplitcatchment = true;
 var runxstool = false;
 var truefalse = 'True';
-var direction = 'none';
+var direction = 'down';
 
 //main document ready function
 $(document).ready(function () {
@@ -154,17 +153,17 @@ $(document).ready(function () {
     var directionButton = L.easyButton(
         {
             states: [{
-                stateName:  'up',
-                icon:       '<strong>Up</strong>',
-                title:      'Upstream',
-                onClick: function(control) {
-                    control.state('down');
-                    direction = 'down';
-                }
-            },{
                 stateName:  'down',
                 icon:       '<strong>Down</strong>',
                 title:      'Downstream',
+                onClick: function(control) {
+                    control.state('up');
+                    direction = 'up';
+                }
+            },{
+                stateName:  'up',
+                icon:       '<strong>Up</strong>',
+                title:      'Upstream',
                 onClick: function(control) {
                     control.state('none');
                     direction = 'none';
@@ -174,8 +173,8 @@ $(document).ready(function () {
                 icon:       '<strong>Entire</strong>',
                 title:      'Entire',
                 onClick: function(control) {
-                    control.state('up');
-                    direction = 'up';
+                    control.state('down');
+                    direction = 'down';
                 }
 
             }]
@@ -289,6 +288,10 @@ function delineatePoint(e) {
     if (downstreamPath) {
         layerControl.removeLayer(downstreamPath);
         map.removeLayer(downstreamPath)
+    }
+    if (streamCrossSection) {
+        layerControl.removeLayer(streamCrossSection);
+        map.removeLayer(streamCrossSection)
     }
 
     var data = {
@@ -483,6 +486,22 @@ function delineatePoint(e) {
                     downstreamPath.addTo(features)
                     layerControl.addOverlay(downstreamPath , "Downstream Path");
                 }
+                
+                if (item['id'] == 'streamCrossSection') {
+                    streamCrossSection = L.geoJson(item, { style: function(feature) {
+                        return {
+                            fillColor: 'purple',
+                            weight: 2,
+                            opacity: 1,
+                            color: 'purple',  //Outline color
+                            fillOpacity: 0.2        
+                        }    
+                    }}).addTo(map);
+                    streamCrossSection.addTo(features)
+                    layerControl.addOverlay(streamCrossSection , "Stream Cross Section");
+                }
+
+                
             
             //console.log('features:',features)
             map.fitBounds(features.getBounds());

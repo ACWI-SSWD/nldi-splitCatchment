@@ -1,9 +1,50 @@
 """Main module."""
+# import aiodns
+# print('ok: aiodns')
+# import aiohttp
+# print('ok: aiohttp')
+# # import brotlipy
+# # print('ok: brotlipy')
+# import chardet
+# print('ok: chardet')
+# import cytoolz
+# print('ok: cytoolz')
+# import defusedxml
+# print('ok: defusedxml')
+# import geopandas
+# print('ok: geopandas')
+# # import nest-asyncio
+# # print('ok: nest-asyncio')
+# import netCDF4
+# print('ok: netCDF4')
+# import orjson
+# print('ok: orjson')
+# import owslib
+# print('ok: owslib')
+# import pygeoogc
+# print('ok: pygeoogc')
+# import pygeoutils
+# print('ok: pygeoutils')
+# import pyproj
+# print('ok: pyproj')
+# import rasterio
+# print('ok: rasterio')
+# import requests
+# print('ok: requests')
+# import setuptools
+# print('ok: setuptools')
+# import shapely
+# print('ok: shapely')
+# import simplejson
+# print('ok: simplejson')
+# import xarray
+# print('ok: xarray')
+
+
 from XSGen import XSGen
 import requests
 import json
-from pygeoogc import WMS
-from py3dep import getmap
+import py3dep
 # from pynhd import NLDI
 import xarray as xr
 from matplotlib import pyplot as plt
@@ -54,7 +95,7 @@ def getXSAtPoint(point, numpoints, width, file=None):
     # get topo polygon with buffer to ensure there is enough topography to interpolate xs line
     # With coarsest DEM (30m) 100. m should
     bb = xs_line.total_bounds - ((100., 100., -100., -100.))
-    dem = get_map("DEM", tuple(bb), resolution=10, geo_crs="EPSG:3857", crs="epsg:3857")  # py3dep.getmap
+    dem = py3dep.get_map("DEM", tuple(bb), resolution=10, geo_crs="EPSG:3857", crs="epsg:3857")  
     x,y = xs.get_xs_points()
     dsi = dem.interp(x=('z', x), y=('z', y))
     pdsi = dsi.to_dataframe()

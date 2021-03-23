@@ -138,7 +138,7 @@ class Flowtrace:
         self.projected_xy = project_point(self.x, self.y, self.transformToRaster)
         self.flw, self.flwdir_transform = get_flowgrid( self.catchmentGeom, self.transformToRaster, self.transformToWGS84 )
         self.onFlowline = get_onFlowline( self.projected_xy, self.flowlines, self.transformToRaster, self.transformToWGS84)
-        self.catchment = geom_to_geojson(self.catchmentGeom, 'catchment')
+        self.catchment = geom_to_geojson(self.catchmentGeom)
 
 
         if self.onFlowline == True:
@@ -148,13 +148,13 @@ class Flowtrace:
 
             # Outputs
             if self.direction == 'up':
-                self.upstreamFlowline = geom_to_geojson(self.upstreamFlowlineGeom, 'upstreamFlowline')
+                self.upstreamFlowline = geom_to_geojson(self.upstreamFlowlineGeom)
             
             if self.direction == 'down':
-                self.downstreamFlowline = geom_to_geojson(self.downstreamFlowlineGeom, 'downstreamFlowline')
+                self.downstreamFlowline = geom_to_geojson(self.downstreamFlowlineGeom)
             
             if self.direction == 'none':
-                self.nhdFlowline = geom_to_geojson(self.nhdFlowlineGeom, 'nhdFlowline')
+                self.nhdFlowline = geom_to_geojson(self.nhdFlowlineGeom)
 
         if self.onFlowline == False:
             self.raindropPathGeom = get_raindropPath(self.flw, self.projected_xy,  self.nhdFlowlineGeom, self.flowlines, self.transformToRaster, self.transformToWGS84)
@@ -164,27 +164,27 @@ class Flowtrace:
 
             # Outputs
             if self.direction == 'up' and self.raindropTrace == True:
-                self.upstreamFlowline = geom_to_geojson(self.upstreamFlowlineGeom, 'upstreamFlowline')
-                self.raindropPath = geom_to_geojson(self.raindropPathGeom, 'raindropPath')
+                self.upstreamFlowline = geom_to_geojson(self.upstreamFlowlineGeom)
+                self.raindropPath = geom_to_geojson(self.raindropPathGeom)
             
             if self.direction == 'down' and self.raindropTrace == True:
-                self.downstreamFlowline = geom_to_geojson(self.downstreamFlowlineGeom, 'downstreamFlowline')
-                self.raindropPath = geom_to_geojson(self.raindropPathGeom, 'raindropPath')
+                self.downstreamFlowline = geom_to_geojson(self.downstreamFlowlineGeom)
+                self.raindropPath = geom_to_geojson(self.raindropPathGeom)
                 # self.downstreamPathGeom = merge_downstreamPath(self.raindropPathGeom, self.downstreamFlowlineGeom)
-                # self.downstreamPath = geom_to_geojson(self.downstreamPathGeom, 'downstreamPath')
+                # self.downstreamPath = geom_to_geojson(self.downstreamPathGeom)
             
             if self.direction == 'none' and self.raindropTrace == True:
-                self.nhdFlowline = geom_to_geojson(self.nhdFlowlineGeom, 'nhdFlowline')
-                self.raindropPath = geom_to_geojson(self.raindropPathGeom, 'raindropPath')
+                self.nhdFlowline = geom_to_geojson(self.nhdFlowlineGeom)
+                self.raindropPath = geom_to_geojson(self.raindropPathGeom)
             
             if self.direction == 'up' and self.raindropTrace == False:
-                 self.upstreamFlowline = geom_to_geojson(self.upstreamFlowlineGeom, 'upstreamFlowline')
+                 self.upstreamFlowline = geom_to_geojson(self.upstreamFlowlineGeom)
             
             if self.direction == 'down' and self.raindropTrace == False:
-                self.downstreamFlowline = geom_to_geojson(self.downstreamFlowlineGeom, 'downstreamFlowline')
+                self.downstreamFlowline = geom_to_geojson(self.downstreamFlowlineGeom)
             
             if self.direction == 'none' and self.raindropTrace == False:
-                self.nhdFlowline = geom_to_geojson(self.nhdFlowlineGeom, 'nhdFlowline')
+                self.nhdFlowline = geom_to_geojson(self.nhdFlowlineGeom)
 
             if self.raindropTrace == True:
                 self.streamInfo = get_reachMeasure(self.intersectionPointGeom, self.flowlines, self.raindropPathGeom)
@@ -192,4 +192,4 @@ class Flowtrace:
                 self.streamInfo = get_reachMeasure(self.intersectionPointGeom, self.flowlines)
                 
 
-        # self.intersectionPoint = geom_to_geojson(self.intersectionPointGeom, 'intersectionPoint')
+        # self.intersectionPoint = geom_to_geojson(self.intersectionPointGeom)

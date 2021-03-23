@@ -78,20 +78,20 @@ class SplitCatchment:
         self.projected_xy = project_point(self.x, self.y, self.transformToRaster)
         self.splitCatchmentGeom = split_catchment(self.catchmentGeom, self.projected_xy, self.transformToRaster, self.transformToWGS84)
         self.onFlowline = get_onFlowline(self.projected_xy, self.flowlines, self.transformToRaster, self.transformToWGS84)
-        self.catchment = geom_to_geojson(self.catchmentGeom, 'catchment')
+        self.catchment = geom_to_geojson(self.catchmentGeom)
 
         # outputs
         if self.upstream == False:
-            self.splitCatchment = geom_to_geojson(self.splitCatchmentGeom, 'splitCatchment')
+            self.splitCatchment = geom_to_geojson(self.splitCatchmentGeom)
 
         if self.upstream == True and self.onFlowline == True:
             self.totalBasinGeom = get_total_basin(self.catchmentIdentifier, self.catchmentGeom)     
             self.mergedCatchmentGeom = merge_geometry(self.catchmentGeom, self.splitCatchmentGeom, self.totalBasinGeom)
-            self.mergedCatchment = geom_to_geojson(self.mergedCatchmentGeom, 'mergedCatchment')
+            self.mergedCatchment = geom_to_geojson(self.mergedCatchmentGeom)
         
         if self.upstream == True and self.onFlowline == False: 
-            self.splitCatchment = geom_to_geojson(self.splitCatchmentGeom, 'splitCatchment')
+            self.splitCatchment = geom_to_geojson(self.splitCatchmentGeom)
             self.totalBasinGeom = get_total_basin(self.catchmentIdentifier, self.catchmentGeom)
             self.upstreamBasinGeom = get_upstream_basin(self.catchmentGeom, self.totalBasinGeom)
-            self.upstreamBasin = geom_to_geojson(self.upstreamBasinGeom, 'upstreamBasin')
+            self.upstreamBasin = geom_to_geojson(self.upstreamBasinGeom)
     
