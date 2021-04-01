@@ -15,6 +15,7 @@ from datetime import datetime
 import splitcatchment
 import flowtrace
 import nldi_xstool 
+import dem_query
 import time
 import json
 from shapely.geometry import LineString, mapping
@@ -38,6 +39,8 @@ def main():
     runsplitcatchment = request.args.get('runsplitcatchment')
     truefalse = bool(request.args.get('truefalse'))
     direction = request.args.get('direction')
+    query = request.args.get('query')
+    res = request.args.get('res')
     xstool = request.args.get('xstool')
 
     #start main program
@@ -47,12 +50,18 @@ def main():
         results = splitcatchment.SplitCatchment(lng, lat, truefalse)
         results = jsonify(results.serialize())
 
-    if runsplitcatchment == 'false' and xstool == 'false':
+    if runsplitcatchment == 'false' and xstool == 'false' and query == 'false':
         results = flowtrace.Flowtrace(lng, lat, truefalse, direction)
         results = jsonify(results.serialize())
 
+    if runsplitcatchment == 'false' and xstool == 'false' and query == 'true':
+        output = dem_query.query_dems('point', [(lat,lng)])
+        results = output
+        results = json.dumps(results)
+        results = json.loads(results)
+
     if runsplitcatchment == 'false' and xstool == 'true':
-        output = nldi_xstool.getXSAtPoint((lat, lng), 100, 100)
+        output = nldi_xstool.getXSAtPoint((lat, lng), 100, 1000, res, None)
         output = output.to_json()
         output = json.loads(output)
 
