@@ -520,6 +520,7 @@ def split_flowline(intersectionPoint, flowlines):
     try:
         NHDFlowlinesCut[1]
     except:  # If NHDFlowline was not split, then the intersectionPoint is either the first or last point on the NHDFlowline
+        # print('nhdFlowline[0].coords:', nhdFlowline.coords[0])
         startPoint = Point(nhdFlowline[0].coords[0][0], nhdFlowline[0].coords[0][1])
         lastPointID = len(nhdFlowline[0].coords) - 1
         lastPoint = Point(nhdFlowline[0].coords[lastPointID][0], nhdFlowline[0].coords[lastPointID][1])

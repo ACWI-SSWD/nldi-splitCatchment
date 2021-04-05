@@ -46,26 +46,30 @@ def main():
     #start main program
     timeBefore = time.perf_counter()  
     
+############# Splitcatchment ##############
     if runsplitcatchment == 'true':
         results = splitcatchment.SplitCatchment(lng, lat, truefalse)
         results = jsonify(results.serialize())
 
+############### Flowtrace ###############
     if runsplitcatchment == 'false' and xstool == 'false' and query == 'false':
         results = flowtrace.Flowtrace(lng, lat, truefalse, direction)
         results = jsonify(results.serialize())
 
+############# Dem_query ##################
     if runsplitcatchment == 'false' and xstool == 'false' and query == 'true':
         output = dem_query.query_dems('point', [(lat,lng)])
         results = output
         results = json.dumps(results)
         results = json.loads(results)
 
+############# XSTool ###################
     if runsplitcatchment == 'false' and xstool == 'true':
         output = nldi_xstool.getXSAtPoint((lat, lng), 100, 1000, res, None)
         output = output.to_json()
         output = json.loads(output)
 
-        print('output',type(output))
+        # print('output',type(output), output)
 
         line = []
         x = 0
@@ -77,7 +81,6 @@ def main():
         linestring = LineString(line)
         geojson_dict = mapping(linestring)
         feature1 = geojson.Feature(geometry=geojson_dict, id='streamCrossSection')
-
         results = geojson.FeatureCollection([feature1])
 
 
